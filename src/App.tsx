@@ -7,6 +7,7 @@ import type { GeometricObject, ViewportState, TerminalLog } from './types';
 import { parseScript } from './parser';
 import { getUnionBoundingBox, getObjectBoundingBox } from './utils/geometry';
 import { ACCENT_PALETTE, ONE_DARK_COLORS } from './utils/theme';
+import { type CalculatorVariable, evaluateAllVariables } from './utils/evaluator';
 import './App.css';
 
 // Initial state is empty by default
@@ -50,6 +51,54 @@ function App() {
 
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  const [calcVariables, setCalcVariables] = useState<CalculatorVariable[]>([]);
+
+  // Reactive re-evaluation of calculator variables whenever objects change
+  useEffect(() => {
+    setCalcVariables(prev => evaluateAllVariables(prev, objects));
+  }, [objects]);
+
+  const handleAddCalcVariable = (name: string, expression: string): string | null => {
+    const trimmedName = name.trim();
+    const trimmedExpr = expression.trim();
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(trimmedName)) {
+      return "Invalid variable name. Must start with a letter/underscore.";
+    }
+    const canvasNames = new Set(Object.values(objects).map(o => o.name));
+    if (canvasNames.has(trimmedName)) {
+      return `Name "${trimmedName}" is already in use by a canvas element.`;
+    }
+    if (calcVariables.some(v => v.name === trimmedName)) {
+      return `Calculator variable "${trimmedName}" is already defined.`;
+    }
+
+    const newVar: CalculatorVariable = {
+      name: trimmedName,
+      expression: trimmedExpr,
+      value: 'NaN',
+    };
+
+    const newList = evaluateAllVariables([...calcVariables, newVar], objects);
+    
+    // Check if the newly added variable has an error
+    const addedVar = newList.find(v => v.name === trimmedName);
+    if (addedVar && addedVar.error && addedVar.error.includes("Circular dependency")) {
+      return "Circular dependency detected.";
+    }
+
+    setCalcVariables(newList);
+    return null;
+  };
+
+  const handleDeleteCalcVariable = (name: string) => {
+    const updated = calcVariables.filter(v => v.name !== name);
+    setCalcVariables(evaluateAllVariables(updated, objects));
+  };
+
+  const handleReorderCalcVariables = (newVars: CalculatorVariable[]) => {
+    setCalcVariables(evaluateAllVariables(newVars, objects));
+  };
 
   const pushToHistory = (newObjects: Record<string, GeometricObject>) => {
     setPast(prev => [...prev, objects]);
@@ -150,6 +199,45 @@ function App() {
 
   // Execute terminal script
   const handleExecuteCommand = (commandText: string): boolean => {
+    // 1. Check for delete calculator variable
+    const deleteMatch = commandText.match(/^delete\s+([a-zA-Z0-9_]+)$/) || commandText.match(/^delete\s*\(\s*([a-zA-Z0-9_]+)\s*\)$/);
+    if (deleteMatch) {
+      const nameToDelete = deleteMatch[1].trim();
+      if (calcVariables.some(v => v.name === nameToDelete)) {
+        handleDeleteCalcVariable(nameToDelete);
+        setLogs(prev => [
+          ...prev,
+          { command: commandText, success: true, timestamp: new Date() }
+        ]);
+        return true;
+      }
+    }
+
+    // 2. Check for calculator variable assignment
+    const calcMatch = commandText.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(.+)$/);
+    if (calcMatch) {
+      const varName = calcMatch[1].trim();
+      const expr = calcMatch[2].trim();
+      
+      const isGeomFunc = /^(point|line|circle|polygon|angle|vec|vector|add|sub)\s*\(/.test(expr) || /^\(/.test(expr);
+      if (!isGeomFunc) {
+        const error = handleAddCalcVariable(varName, expr);
+        if (error) {
+          setLogs(prev => [
+            ...prev,
+            { command: commandText, success: false, error, timestamp: new Date() }
+          ]);
+          return false;
+        } else {
+          setLogs(prev => [
+            ...prev,
+            { command: commandText, success: true, timestamp: new Date() }
+          ]);
+          return true;
+        }
+      }
+    }
+
     const res = parseScript(commandText, objects, ACCENT_PALETTE);
     
     if (res.undoState) {
@@ -179,6 +267,9 @@ function App() {
       ]);
       return false;
     } else {
+      if (res.clearState) {
+        setCalcVariables([]);
+      }
       // Apply clearState and deletedNames if any
       let newObjs = res.clearState ? {} : { ...objects };
       
@@ -423,6 +514,10 @@ function App() {
           onFocusAll={handleFocusAll}
           onClearAll={handleClearAll}
           onAddLog={handleAddLog}
+          calcVariables={calcVariables}
+          onAddCalcVariable={handleAddCalcVariable}
+          onDeleteCalcVariable={handleDeleteCalcVariable}
+          onReorderCalcVariables={handleReorderCalcVariables}
         />
 
         {/* Central Viewport & Bottom Terminal */}

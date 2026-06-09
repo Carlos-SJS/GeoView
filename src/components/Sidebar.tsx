@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import type { GeometricObject, ObjectType } from '../types';
 import { ONE_DARK_COLORS } from '../utils/theme';
 import { generateDefaultName } from '../parser';
+import { CalculatorPanel } from './CalculatorPanel';
+import type { CalculatorVariable } from '../utils/evaluator';
 
 interface SidebarProps {
   objects: Record<string, GeometricObject>;
@@ -13,6 +15,10 @@ interface SidebarProps {
   onFocusAll: () => void;
   onClearAll: () => void;
   onAddLog: (command: string, success: boolean, error?: string) => void;
+  calcVariables: CalculatorVariable[];
+  onAddCalcVariable: (name: string, expression: string) => string | null;
+  onDeleteCalcVariable: (name: string) => void;
+  onReorderCalcVariables: (newVars: CalculatorVariable[]) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -25,10 +31,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onFocusAll,
   onClearAll,
   onAddLog,
+  calcVariables,
+  onAddCalcVariable,
+  onDeleteCalcVariable,
+  onReorderCalcVariables,
 }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportedScriptText, setExportedScriptText] = useState('');
+  const [elementsExpanded, setElementsExpanded] = useState(true);
+  const [calcExpanded, setCalcExpanded] = useState(true);
 
   const objectsList = Object.values(objects);
 
@@ -457,66 +469,94 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
       </div>
 
-      <div className="sidebar-list-container">
-        <div className="section-title">Canvas Elements ({objectsList.length})</div>
-        {objectsList.length === 0 ? (
-          <div className="empty-message">No elements on canvas. Use commands below or the Add button above to create geometry.</div>
-        ) : (
-          <div className="objects-list">
-            {objectsList.map(obj => {
-              const isSelected = selectedId === obj.id;
-              return (
-                <div
-                  key={obj.id}
-                  className={`object-item ${isSelected ? 'selected' : ''} ${!obj.visible ? 'hidden' : ''}`}
-                  onClick={() => onSelect(obj.id)}
-                  style={{
-                    borderLeftColor: obj.color,
-                  }}
-                >
-                  <div className="item-icon-container" style={{ color: obj.color }}>
-                    {Icons[obj.type]}
-                  </div>
-                  
-                  <div className="item-details">
-                    <span className="item-name">{obj.name}</span>
-                    <span className="item-coords">{getSubText(obj)}</span>
-                  </div>
-
-                  <div className="item-actions">
-                    <button
-                      className="action-btn-list"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onToggleVisibility(obj.id);
-                      }}
-                      title={obj.visible ? 'Hide Object' : 'Show Object'}
-                    >
-                      {obj.visible ? Icons.visible : Icons.hidden}
-                    </button>
-                    <button
-                      className="action-btn-list"
-                      onClick={(e) => handleDuplicate(e, obj)}
-                      title="Duplicate Object"
-                    >
-                      {Icons.duplicate}
-                    </button>
-                    <button
-                      className="action-btn-list danger"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDelete(obj.id);
-                      }}
-                      title="Delete Object"
-                    >
-                      {Icons.trash}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+      <div className="sidebar-lists-wrapper">
+        {/* Section 1: Canvas Elements */}
+        <div className={`sidebar-section ${elementsExpanded ? 'expanded' : 'collapsed'}`}>
+          <div className="sidebar-section-header" onClick={() => setElementsExpanded(!elementsExpanded)}>
+            <div className="sidebar-section-title">
+              <span className="collapse-arrow">{elementsExpanded ? '▼' : '▶'}</span>
+              Canvas Elements ({objectsList.length})
+            </div>
           </div>
-        )}
+          <div className="sidebar-section-content">
+            {objectsList.length === 0 ? (
+              <div className="empty-message">No elements on canvas. Use commands below or the Add button above to create geometry.</div>
+            ) : (
+              <div className="objects-list">
+                {objectsList.map(obj => {
+                  const isSelected = selectedId === obj.id;
+                  return (
+                    <div
+                      key={obj.id}
+                      className={`object-item ${isSelected ? 'selected' : ''} ${!obj.visible ? 'hidden' : ''}`}
+                      onClick={() => onSelect(obj.id)}
+                      style={{
+                        borderLeftColor: obj.color,
+                      }}
+                    >
+                      <div className="item-icon-container" style={{ color: obj.color }}>
+                        {Icons[obj.type]}
+                      </div>
+                      
+                      <div className="item-details">
+                        <span className="item-name">{obj.name}</span>
+                        <span className="item-coords">{getSubText(obj)}</span>
+                      </div>
+
+                      <div className="item-actions">
+                        <button
+                          className="action-btn-list"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleVisibility(obj.id);
+                          }}
+                          title={obj.visible ? 'Hide Object' : 'Show Object'}
+                        >
+                          {obj.visible ? Icons.visible : Icons.hidden}
+                        </button>
+                        <button
+                          className="action-btn-list"
+                          onClick={(e) => handleDuplicate(e, obj)}
+                          title="Duplicate Object"
+                        >
+                          {Icons.duplicate}
+                        </button>
+                        <button
+                          className="action-btn-list danger"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDelete(obj.id);
+                          }}
+                          title="Delete Object"
+                        >
+                          {Icons.trash}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Section 2: Calculator Variables */}
+        <div className={`sidebar-section ${calcExpanded ? 'expanded' : 'collapsed'}`}>
+          <div className="sidebar-section-header" onClick={() => setCalcExpanded(!calcExpanded)}>
+            <div className="sidebar-section-title">
+              <span className="collapse-arrow">{calcExpanded ? '▼' : '▶'}</span>
+              Calculator ({calcVariables.length})
+            </div>
+          </div>
+          <div className="sidebar-section-content">
+            <CalculatorPanel
+              calcVariables={calcVariables}
+              onAddCalcVariable={onAddCalcVariable}
+              onDeleteCalcVariable={onDeleteCalcVariable}
+              onReorderCalcVariables={onReorderCalcVariables}
+            />
+          </div>
+        </div>
       </div>
 
       {/* Export Confirmation Fullscreen Modal */}
