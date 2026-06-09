@@ -270,6 +270,16 @@ export function getObjectBoundingBox(obj: GeometricObject, objects: Record<strin
         maxY: Math.max(p1.y, p2.y),
       };
     }
+    case 'vector': {
+      const eps = resolveVectorEndpoints(obj, objects);
+      if (!eps) return null;
+      return {
+        minX: Math.min(eps.p1.x, eps.p2.x),
+        minY: Math.min(eps.p1.y, eps.p2.y),
+        maxX: Math.max(eps.p1.x, eps.p2.x),
+        maxY: Math.max(eps.p1.y, eps.p2.y),
+      };
+    }
     case 'circle': {
       const center = resolvePoint(obj.center, objects);
       if (!center) return null;
