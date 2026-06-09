@@ -456,6 +456,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button className="dropdown-item" onClick={() => createDefaultObject('line')}>
               {Icons.line} Line Segment
             </button>
+            <button className="dropdown-item" onClick={() => createDefaultObject('vector')}>
+              {Icons.vector} Vector
+            </button>
             <button className="dropdown-item" onClick={() => createDefaultObject('circle')}>
               {Icons.circle} Circle
             </button>

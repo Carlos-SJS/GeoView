@@ -458,29 +458,33 @@ export const Viewport: React.FC<ViewportProps> = ({
       const s2 = worldToScreen(p2.x, p2.y);
       const isSel = selectedId === obj.id;
 
+      // Draw main line body (shortened to base of arrowhead to prevent overlapping at the tip)
+      const ang = Math.atan2(s2.y - s1.y, s2.x - s1.x);
+      const headLength = 15; // increased size in pixels
+      const headAngle = 25 * Math.PI / 180; // 25 degrees
+      const arrowBaseLength = headLength * Math.cos(headAngle);
+      const sBaseX = s2.x - arrowBaseLength * Math.cos(ang);
+      const sBaseY = s2.y - arrowBaseLength * Math.sin(ang);
+
       // Glow backing line if selected
       if (isSel) {
         ctx.strokeStyle = hexToRgba(obj.color, 0.4);
-        ctx.lineWidth = 7;
+        ctx.lineWidth = 6;
         ctx.beginPath();
         ctx.moveTo(s1.x, s1.y);
-        ctx.lineTo(s2.x, s2.y);
+        ctx.lineTo(sBaseX, sBaseY);
         ctx.stroke();
       }
 
       // Draw main line body
       ctx.strokeStyle = obj.color;
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = 2; // slightly thinner line
       ctx.beginPath();
       ctx.moveTo(s1.x, s1.y);
-      ctx.lineTo(s2.x, s2.y);
+      ctx.lineTo(sBaseX, sBaseY);
       ctx.stroke();
 
       // Draw solid filled arrow head at s2
-      const ang = Math.atan2(s2.y - s1.y, s2.x - s1.x);
-      const headLength = 12; // size in pixels
-      const headAngle = 25 * Math.PI / 180; // 25 degrees
-
       ctx.fillStyle = obj.color;
       ctx.beginPath();
       ctx.moveTo(s2.x, s2.y);

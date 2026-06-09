@@ -219,7 +219,8 @@ function App() {
       const varName = calcMatch[1].trim();
       const expr = calcMatch[2].trim();
       
-      const isGeomFunc = /^(point|line|circle|polygon|angle|vec|vector|add|sub)\s*\(/.test(expr) || /^\(/.test(expr);
+      const isVectorArithmetic = /^([a-zA-Z_][a-zA-Z0-9_]*)\s*([\+-])\s*([a-zA-Z_][a-zA-Z0-9_]*)(?:\s*,\s*(.+))?$/.test(expr);
+      const isGeomFunc = /^(point|line|circle|polygon|angle|vec|vector|add|sub)\s*\(/.test(expr) || /^\(/.test(expr) || isVectorArithmetic;
       if (!isGeomFunc) {
         const error = handleAddCalcVariable(varName, expr);
         if (error) {
