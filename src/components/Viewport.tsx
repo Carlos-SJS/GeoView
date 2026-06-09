@@ -59,33 +59,43 @@ export const Viewport: React.FC<ViewportProps> = ({
   }[]>([]);
   const dragStartWorld = useRef({ x: 0, y: 0 });
   const draggedObjectsRef = useRef<Record<string, GeometricObject>>({});
-  const isAltPressed = useRef(false);
-  const isAltTemporaryDrag = useRef(false);
+  const isGPressed = useRef(false);
+  const isGTemporaryDrag = useRef(false);
 
   const { scale, offsetX, offsetY } = viewportState;
 
-  // Listen to keyboard shortcut (Escape to select, Alt for temporary drag)
+  // Listen to keyboard shortcut (Escape to select, G for temporary drag)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+        return;
+      }
+
       if (e.key === 'Escape') {
         setCursorMode('select');
-      } else if (e.key === 'Alt') {
+      } else if (e.key === 'g' || e.key === 'G') {
         e.preventDefault();
-        if (cursorMode === 'select' && !isAltPressed.current) {
-          isAltPressed.current = true;
+        if (cursorMode === 'select' && !isGPressed.current) {
+          isGPressed.current = true;
           setCursorMode('drag');
-          isAltTemporaryDrag.current = true;
+          isGTemporaryDrag.current = true;
         }
       }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === 'Alt') {
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+        return;
+      }
+
+      if (e.key === 'g' || e.key === 'G') {
         e.preventDefault();
-        isAltPressed.current = false;
-        if (isAltTemporaryDrag.current) {
+        isGPressed.current = false;
+        if (isGTemporaryDrag.current) {
           setCursorMode('select');
-          isAltTemporaryDrag.current = false;
+          isGTemporaryDrag.current = false;
         }
       }
     };
@@ -678,7 +688,7 @@ export const Viewport: React.FC<ViewportProps> = ({
 
       dragTargets.current.forEach(target => {
         if (target.type === 'point_object' && target.name) {
-          const pt = objects[target.name];
+          const pt = updatedMap[target.name] || objects[target.name];
           if (pt && pt.type === 'point') {
             updatedMap[pt.name] = {
               ...pt,
@@ -689,7 +699,10 @@ export const Viewport: React.FC<ViewportProps> = ({
         } else if (target.type === 'custom_property' && target.objId) {
           const nameKey = Object.keys(objects).find(k => objects[k].id === target.objId);
           if (nameKey) {
-            const obj = { ...objects[nameKey] };
+            const obj = updatedMap[nameKey]
+              ? { ...updatedMap[nameKey] }
+              : { ...objects[nameKey] };
+              
             if (target.propPath === 'center' && obj.type === 'circle') {
               obj.center = { x: target.initialX + dx, y: target.initialY + dy };
             } else if (target.propPath === 'p1' && obj.type === 'line') {
@@ -817,7 +830,7 @@ export const Viewport: React.FC<ViewportProps> = ({
         <button
           className={`toolbar-btn ${cursorMode === 'drag' ? 'active' : ''}`}
           onClick={() => setCursorMode('drag')}
-          title="Drag Elements (Hold Alt for temporary drag)"
+          title="Drag Elements (Hold G for temporary drag)"
         >
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5">
             <polyline points="5 9 2 12 5 15" />
