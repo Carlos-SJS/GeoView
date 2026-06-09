@@ -1,5 +1,5 @@
 import type { GeometricObject } from '../types';
-import { resolvePoint, getPolygonArea, getPolygonPerimeter, getAngleValue } from './geometry';
+import { resolveVectorEndpoints, getPolygonArea, getPolygonPerimeter, getAngleValue } from './geometry';
 
 type Token =
   | { type: 'NUMBER'; value: number }
@@ -277,12 +277,10 @@ export function evaluateAST(
         if (!v || v.type !== 'vector' || !w || w.type !== 'vector') {
           throw new Error("dot arguments must be defined vectors");
         }
-        const vP1 = resolvePoint(v.p1, canvasObjects);
-        const vP2 = resolvePoint(v.p2, canvasObjects);
-        const wP1 = resolvePoint(w.p1, canvasObjects);
-        const wP2 = resolvePoint(w.p2, canvasObjects);
-        if (!vP1 || !vP2 || !wP1 || !wP2) throw new Error("Could not resolve vector coordinates");
-        return (vP2.x - vP1.x) * (wP2.x - wP1.x) + (vP2.y - vP1.y) * (wP2.y - wP1.y);
+        const epsV = resolveVectorEndpoints(v, canvasObjects);
+        const epsW = resolveVectorEndpoints(w, canvasObjects);
+        if (!epsV || !epsW) throw new Error("Could not resolve vector coordinates");
+        return (epsV.p2.x - epsV.p1.x) * (epsW.p2.x - epsW.p1.x) + (epsV.p2.y - epsV.p1.y) * (epsW.p2.y - epsW.p1.y);
       }
       if (node.name === 'cross') {
         if (node.args.length !== 2) throw new Error("cross requires 2 arguments");
@@ -296,12 +294,10 @@ export function evaluateAST(
         if (!v || v.type !== 'vector' || !w || w.type !== 'vector') {
           throw new Error("cross arguments must be defined vectors");
         }
-        const vP1 = resolvePoint(v.p1, canvasObjects);
-        const vP2 = resolvePoint(v.p2, canvasObjects);
-        const wP1 = resolvePoint(w.p1, canvasObjects);
-        const wP2 = resolvePoint(w.p2, canvasObjects);
-        if (!vP1 || !vP2 || !wP1 || !wP2) throw new Error("Could not resolve vector coordinates");
-        return (vP2.x - vP1.x) * (wP2.y - wP1.y) - (vP2.y - vP1.y) * (wP2.x - wP1.x);
+        const epsV = resolveVectorEndpoints(v, canvasObjects);
+        const epsW = resolveVectorEndpoints(w, canvasObjects);
+        if (!epsV || !epsW) throw new Error("Could not resolve vector coordinates");
+        return (epsV.p2.x - epsV.p1.x) * (epsW.p2.y - epsW.p1.y) - (epsV.p2.y - epsV.p1.y) * (epsW.p2.x - epsW.p1.x);
       }
       if (node.name === 'abs') {
         if (node.args.length !== 1) throw new Error("abs requires 1 argument");
@@ -309,10 +305,9 @@ export function evaluateAST(
         if (arg.type === 'VARIABLE') {
           const v = canvasObjects[arg.name];
           if (v && v.type === 'vector') {
-            const vP1 = resolvePoint(v.p1, canvasObjects);
-            const vP2 = resolvePoint(v.p2, canvasObjects);
-            if (!vP1 || !vP2) throw new Error("Could not resolve vector coordinates");
-            return Math.hypot(vP2.x - vP1.x, vP2.y - vP1.y);
+            const eps = resolveVectorEndpoints(v, canvasObjects);
+            if (!eps) throw new Error("Could not resolve vector coordinates");
+            return Math.hypot(eps.p2.x - eps.p1.x, eps.p2.y - eps.p1.y);
           }
         }
         const val = evaluateAST(arg, canvasObjects, variableValues);

@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import type { GeometricObject, ViewportState } from '../types';
 import {
   resolvePoint,
+  resolveVectorEndpoints,
   getDistanceToObject,
   getDistance,
   type Point,
@@ -450,12 +451,11 @@ export const Viewport: React.FC<ViewportProps> = ({
     // 4.5. Draw Vectors
     objectsList.forEach(obj => {
       if (obj.type !== 'vector' || !obj.visible) return;
-      const p1 = resolvePoint(obj.p1, objects);
-      const p2 = resolvePoint(obj.p2, objects);
-      if (!p1 || !p2) return;
+      const eps = resolveVectorEndpoints(obj, objects);
+      if (!eps) return;
 
-      const s1 = worldToScreen(p1.x, p1.y);
-      const s2 = worldToScreen(p2.x, p2.y);
+      const s1 = worldToScreen(eps.p1.x, eps.p1.y);
+      const s2 = worldToScreen(eps.p2.x, eps.p2.y);
       const isSel = selectedId === obj.id;
 
       // Draw main line body (shortened to base of arrowhead to prevent overlapping at the tip)
@@ -646,6 +646,10 @@ export const Viewport: React.FC<ViewportProps> = ({
             }
           });
         } else if (draggedObj.type === 'vector') {
+          const v = draggedObj as any;
+          if (v.op && v.v1Ref && v.v2Ref) {
+            return;
+          }
           const p2Val = resolvePoint(draggedObj.p2, objects);
           const distToTip = p2Val ? getDistance(worldClick, p2Val) * scale : Infinity;
           

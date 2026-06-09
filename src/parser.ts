@@ -1,5 +1,4 @@
 import type { GeometricObject, ObjectType } from './types';
-import { resolvePoint } from './utils/geometry';
 
 // Validates C++ variable name conventions
 const CPP_VAR_REGEX = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
@@ -564,31 +563,18 @@ export function parseScript(
             throw new Error(`Vector reference "${wName}" is not defined or is not a vector.`);
           }
 
-          const vP1 = resolvePoint(vecV.p1, activeObjects);
-          const vP2 = resolvePoint(vecV.p2, activeObjects);
-          const wP1 = resolvePoint(vecW.p1, activeObjects);
-          const wP2 = resolvePoint(vecW.p2, activeObjects);
-
-          if (!vP1 || !vP2 || !wP1 || !wP2) {
-            throw new Error(`Could not resolve coordinates for vectors "${vName}" or "${wName}".`);
-          }
-
-          const dxW = wP2.x - wP1.x;
-          const dyW = wP2.y - wP1.y;
-
-          // Resulting vector starts at v.p1, and ends at v.p1 + displacement(v) + displacement(w) -> i.e., v.p2 + displacement(w)
-          const p1 = { x: vP1.x, y: vP1.y };
-          const p2 = { x: vP2.x + dxW, y: vP2.y + dyW };
-
           const finalName = name || generateDefaultName('vector', getActiveNamesSet());
           createdObject = {
             id: `vc_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
             name: finalName,
             type: 'vector',
-            p1,
-            p2,
+            p1: { x: 0, y: 0 },
+            p2: { x: 0, y: 0 },
             color: colorParam || getNextColor(),
-            visible: true
+            visible: true,
+            op: 'add',
+            v1Ref: vName,
+            v2Ref: wName
           };
           break;
         }
@@ -607,26 +593,18 @@ export function parseScript(
             throw new Error(`Vector reference "${wName}" is not defined or is not a vector.`);
           }
 
-          const vP2 = resolvePoint(vecV.p2, activeObjects);
-          const wP2 = resolvePoint(vecW.p2, activeObjects);
-
-          if (!vP2 || !wP2) {
-            throw new Error(`Could not resolve tip coordinates for vectors "${vName}" or "${wName}".`);
-          }
-
-          // Resulting vector starts at w.p2 (tip of w) and points to v.p2 (tip of v)
-          const p1 = { x: wP2.x, y: wP2.y };
-          const p2 = { x: vP2.x, y: vP2.y };
-
           const finalName = name || generateDefaultName('vector', getActiveNamesSet());
           createdObject = {
             id: `vc_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
             name: finalName,
             type: 'vector',
-            p1,
-            p2,
+            p1: { x: 0, y: 0 },
+            p2: { x: 0, y: 0 },
             color: colorParam || getNextColor(),
-            visible: true
+            visible: true,
+            op: 'sub',
+            v1Ref: vName,
+            v2Ref: wName
           };
           break;
         }

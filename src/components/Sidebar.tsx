@@ -4,6 +4,7 @@ import { ONE_DARK_COLORS } from '../utils/theme';
 import { generateDefaultName } from '../parser';
 import { CalculatorPanel } from './CalculatorPanel';
 import type { CalculatorVariable } from '../utils/evaluator';
+import { resolveVectorEndpoints } from '../utils/geometry';
 
 interface SidebarProps {
   objects: Record<string, GeometricObject>;
@@ -168,6 +169,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       case 'angle':
         return `${obj.name} = angle(${obj.pA}, ${obj.pB}, ${obj.pC}${colorArg})`;
       case 'vector': {
+        if (obj.op && obj.v1Ref && obj.v2Ref) {
+          const sign = obj.op === 'add' ? '+' : '-';
+          return `${obj.name} = ${obj.v1Ref} ${sign} ${obj.v2Ref}${colorArg}`;
+        }
         const p1Str = typeof obj.p1 === 'string' ? obj.p1 : `(${obj.p1.x},${obj.p1.y})`;
         const p2Str = typeof obj.p2 === 'string' ? obj.p2 : `(${obj.p2.x},${obj.p2.y})`;
         return `${obj.name} = vec(${p1Str}, ${p2Str}${colorArg})`;
@@ -404,8 +409,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
         return `${p1s} ➔ ${p2s}`;
       }
       case 'vector': {
-        const p1s = typeof obj.p1 === 'string' ? obj.p1 : `(${obj.p1.x},${obj.p1.y})`;
-        const p2s = typeof obj.p2 === 'string' ? obj.p2 : `(${obj.p2.x},${obj.p2.y})`;
+        const eps = resolveVectorEndpoints(obj, objects);
+        if (!eps) return 'vec: Undefined';
+        const p1s = `(${eps.p1.x.toFixed(1)}, ${eps.p1.y.toFixed(1)})`;
+        const p2s = `(${eps.p2.x.toFixed(1)}, ${eps.p2.y.toFixed(1)})`;
+        if (obj.op && obj.v1Ref && obj.v2Ref) {
+          const sign = obj.op === 'add' ? '+' : '-';
+          return `${obj.v1Ref} ${sign} ${obj.v2Ref} [${p1s} ➔ ${p2s}]`;
+        }
         return `vec: ${p1s} ➔ ${p2s}`;
       }
       case 'circle': {

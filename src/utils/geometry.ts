@@ -27,6 +27,45 @@ export function resolvePoint(
   return ref;
 }
 
+// Resolves endpoints of a vector dynamically, including derived arithmetic vectors
+export function resolveVectorEndpoints(
+  vec: GeometricObject,
+  objects: Record<string, GeometricObject>
+): { p1: Point; p2: Point } | null {
+  if (vec.type !== 'vector') return null;
+  
+  const v = vec as any;
+  if (v.op && v.v1Ref && v.v2Ref) {
+    const v1 = objects[v.v1Ref];
+    const v2 = objects[v.v2Ref];
+    if (!v1 || !v2) return null;
+    
+    const ep1 = resolveVectorEndpoints(v1, objects);
+    const ep2 = resolveVectorEndpoints(v2, objects);
+    if (!ep1 || !ep2) return null;
+    
+    if (v.op === 'add') {
+      const dx2 = ep2.p2.x - ep2.p1.x;
+      const dy2 = ep2.p2.y - ep2.p1.y;
+      return {
+        p1: ep1.p1,
+        p2: { x: ep1.p2.x + dx2, y: ep1.p2.y + dy2 }
+      };
+    } else if (v.op === 'sub') {
+      return {
+        p1: ep2.p2,
+        p2: ep1.p2
+      };
+    }
+  }
+  
+  // Standard vector
+  const p1 = resolvePoint(vec.p1, objects);
+  const p2 = resolvePoint(vec.p2, objects);
+  if (!p1 || !p2) return null;
+  return { p1, p2 };
+}
+
 // Distance between two points
 export function getDistance(p1: Point, p2: Point): number {
   return Math.hypot(p2.x - p1.x, p2.y - p1.y);
@@ -308,12 +347,16 @@ export function getDistanceToObject(
     case 'point': {
       return getDistanceToPoint(px, py, obj);
     }
-    case 'line':
-    case 'vector': {
+    case 'line': {
       const p1 = resolvePoint(obj.p1, objects);
       const p2 = resolvePoint(obj.p2, objects);
       if (!p1 || !p2) return Infinity;
       return getDistanceToSegment(px, py, p1, p2);
+    }
+    case 'vector': {
+      const eps = resolveVectorEndpoints(obj, objects);
+      if (!eps) return Infinity;
+      return getDistanceToSegment(px, py, eps.p1, eps.p2);
     }
     case 'circle': {
       const center = resolvePoint(obj.center, objects);

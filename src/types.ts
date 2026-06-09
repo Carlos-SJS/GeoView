@@ -64,6 +64,9 @@ export interface VectorObject {
   color: string;
   visible: boolean;
   fill?: boolean;
+  op?: 'add' | 'sub';                    // Operation type if derived
+  v1Ref?: string;                         // First operand vector name
+  v2Ref?: string;                         // Second operand vector name
 }
 
 export type GeometricObject =
