@@ -108,6 +108,25 @@ export function parseScript(
         deletedNames.length = 0;
         continue;
       }
+
+      // Check for delete command: "delete <name>" or "delete(<name>)"
+      const deleteMatch = line.match(/^delete\s+([a-zA-Z0-9_]+)$/) || line.match(/^delete\s*\(\s*([a-zA-Z0-9_]+)\s*\)$/);
+      if (deleteMatch) {
+        const nameToDelete = deleteMatch[1].trim();
+        
+        if (!activeObjects[nameToDelete]) {
+          throw new Error(`Cannot delete "${nameToDelete}". Object is not defined.`);
+        }
+        
+        delete activeObjects[nameToDelete];
+        deletedNames.push(nameToDelete);
+        
+        const idx = parsedObjects.findIndex(o => o.name === nameToDelete);
+        if (idx !== -1) {
+          parsedObjects.splice(idx, 1);
+        }
+        continue;
+      }
       // 1. Check for assignment: name = function(...)
       const assignMatch = line.match(/^([a-zA-Z0-9_]+)\s*=\s*(.+)$/);
       let name: string | null = null;
