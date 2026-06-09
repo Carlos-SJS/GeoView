@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Viewport } from './components/Viewport';
 import { PropertiesPanel } from './components/PropertiesPanel';
@@ -14,6 +14,10 @@ const INITIAL_OBJECTS: Record<string, GeometricObject> = {};
 
 function App() {
   const [objects, setObjects] = useState<Record<string, GeometricObject>>(INITIAL_OBJECTS);
+  const [past, setPast] = useState<Record<string, GeometricObject>[]>([]);
+  const [future, setFuture] = useState<Record<string, GeometricObject>[]>([]);
+  const dragStartObjects = useRef<Record<string, GeometricObject> | null>(null);
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [viewport, setViewport] = useState<ViewportState>({
     scale: 45,
@@ -47,6 +51,92 @@ function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  const pushToHistory = (newObjects: Record<string, GeometricObject>) => {
+    setPast(prev => [...prev, objects]);
+    setObjects(newObjects);
+    setFuture([]);
+  };
+
+  const handleUndo = () => {
+    if (past.length === 0) return;
+    const previous = past[past.length - 1];
+    const newPast = past.slice(0, past.length - 1);
+    
+    setFuture(prev => [objects, ...prev]);
+    setObjects(previous);
+    setPast(newPast);
+    
+    if (selectedId && !Object.values(previous).some(o => o.id === selectedId)) {
+      setSelectedId(null);
+    }
+  };
+
+  const handleRedo = () => {
+    if (future.length === 0) return;
+    const next = future[0];
+    const newFuture = future.slice(1);
+    
+    setPast(prev => [...prev, objects]);
+    setObjects(next);
+    setFuture(newFuture);
+  };
+
+  const handleStartDrag = () => {
+    dragStartObjects.current = { ...objects };
+  };
+
+  const handleCommitDrag = (updatedMap: Record<string, GeometricObject>) => {
+    if (!dragStartObjects.current) return;
+    
+    let hasMoved = false;
+    for (const key of Object.keys(updatedMap)) {
+      const startObj = dragStartObjects.current[key];
+      const finalObj = updatedMap[key];
+      if (!startObj || JSON.stringify(startObj) !== JSON.stringify(finalObj)) {
+        hasMoved = true;
+        break;
+      }
+    }
+    
+    if (hasMoved) {
+      const finalObjects = {
+        ...objects,
+        ...updatedMap
+      };
+      const snapshot = dragStartObjects.current;
+      setPast(prev => [...prev, snapshot]);
+      setObjects(finalObjects);
+      setFuture([]);
+    }
+    
+    dragStartObjects.current = null;
+  };
+
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+        return;
+      }
+
+      if (e.ctrlKey) {
+        if (e.key === 'z' || e.key === 'Z') {
+          e.preventDefault();
+          if (e.shiftKey) {
+            handleRedo();
+          } else {
+            handleUndo();
+          }
+        } else if (e.key === 'y' || e.key === 'Y') {
+          e.preventDefault();
+          handleRedo();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [past, future, objects]);
+
   const getCanvasDimensions = () => {
     // Sidebar: 340px, Properties panel: 320px (only when selectedId is non-null)
     const rightPanelWidth = selectedId ? 320 : 0;
@@ -62,6 +152,24 @@ function App() {
   const handleExecuteCommand = (commandText: string): boolean => {
     const res = parseScript(commandText, objects, ACCENT_PALETTE);
     
+    if (res.undoState) {
+      handleUndo();
+      setLogs(prev => [
+        ...prev,
+        { command: commandText, success: true, timestamp: new Date() }
+      ]);
+      return true;
+    }
+
+    if (res.redoState) {
+      handleRedo();
+      setLogs(prev => [
+        ...prev,
+        { command: commandText, success: true, timestamp: new Date() }
+      ]);
+      return true;
+    }
+
     if (res.errors.length > 0) {
       // Create failure log
       const errStr = res.errors.join(' | ');
@@ -84,7 +192,8 @@ function App() {
       res.objects.forEach(obj => {
         newObjs[obj.name] = obj;
       });
-      setObjects(newObjs);
+      
+      pushToHistory(newObjs);
       
       // Select last created object
       if (res.objects.length > 0) {
@@ -114,7 +223,7 @@ function App() {
     
     const newObjs = { ...objects };
     delete newObjs[obj.name];
-    setObjects(newObjs);
+    pushToHistory(newObjs);
     
     if (selectedId === id) {
       setSelectedId(null);
@@ -125,33 +234,36 @@ function App() {
     const key = Object.keys(objects).find(k => objects[k].id === id);
     if (!key) return;
     
-    setObjects(prev => ({
-      ...prev,
+    const newObjs = {
+      ...objects,
       [key]: {
-        ...prev[key],
-        visible: !prev[key].visible
+        ...objects[key],
+        visible: !objects[key].visible
       }
-    }));
+    };
+    pushToHistory(newObjs);
   };
 
   const handleAddObjectDirect = (newObj: GeometricObject) => {
-    setObjects(prev => ({
-      ...prev,
+    const newObjs = {
+      ...objects,
       [newObj.name]: newObj
-    }));
+    };
+    pushToHistory(newObjs);
   };
 
   // Renames an object and cascades name changes to referencing objects
-  const handleChangeObject = (updatedObj: GeometricObject) => {
+  const handleChangeObject = (updatedObj: GeometricObject, isCommit: boolean = true) => {
     const oldKey = Object.keys(objects).find(k => objects[k].id === updatedObj.id);
     if (!oldKey) return;
     
     const oldName = objects[oldKey].name;
     const newName = updatedObj.name;
     
+    const nextObjs = { ...objects };
+    
     if (oldName !== newName) {
       // Name changed -> Trigger Cascade Rename
-      const nextObjs = { ...objects };
       delete nextObjs[oldName];
       
       for (const item of Object.values(objects)) {
@@ -185,13 +297,14 @@ function App() {
           nextObjs[cloned.name] = item;
         }
       }
-      setObjects(nextObjs);
     } else {
-      // Normal property change (coordinates, color, radius)
-      setObjects(prev => ({
-        ...prev,
-        [oldKey]: updatedObj
-      }));
+      nextObjs[oldKey] = updatedObj;
+    }
+
+    if (isCommit) {
+      pushToHistory(nextObjs);
+    } else {
+      setObjects(nextObjs);
     }
   };
 
@@ -270,7 +383,7 @@ function App() {
 
   const handleClearAll = () => {
     if (window.confirm("Are you sure you want to clear all geometric elements?")) {
-      setObjects({});
+      pushToHistory({});
       setSelectedId(null);
       setLogs(prev => [
         ...prev,
@@ -321,6 +434,12 @@ function App() {
             viewportState={viewport}
             setViewportState={handleViewportOffsetAdjust}
             onUpdateObjects={handleUpdateObjects}
+            onStartDrag={handleStartDrag}
+            onCommitDrag={handleCommitDrag}
+            onUndo={handleUndo}
+            onRedo={handleRedo}
+            canUndo={past.length > 0}
+            canRedo={future.length > 0}
           />
           <Terminal
             logs={logs}

@@ -15,6 +15,12 @@ interface ViewportProps {
   viewportState: ViewportState;
   setViewportState: (state: ViewportState) => void;
   onUpdateObjects: (updated: Record<string, GeometricObject>) => void;
+  onStartDrag: () => void;
+  onCommitDrag: (updated: Record<string, GeometricObject>) => void;
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
 }
 
 export const Viewport: React.FC<ViewportProps> = ({
@@ -24,6 +30,12 @@ export const Viewport: React.FC<ViewportProps> = ({
   viewportState,
   setViewportState,
   onUpdateObjects,
+  onStartDrag,
+  onCommitDrag,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -46,6 +58,7 @@ export const Viewport: React.FC<ViewportProps> = ({
     initialY: number;
   }[]>([]);
   const dragStartWorld = useRef({ x: 0, y: 0 });
+  const draggedObjectsRef = useRef<Record<string, GeometricObject>>({});
   const isAltPressed = useRef(false);
   const isAltTemporaryDrag = useRef(false);
 
@@ -613,6 +626,8 @@ export const Viewport: React.FC<ViewportProps> = ({
         dragTargets.current = uniqueTargets;
         dragStartWorld.current = worldClick;
         setIsDraggingObj(true);
+        draggedObjectsRef.current = {};
+        onStartDrag();
         return;
       }
     }
@@ -692,6 +707,10 @@ export const Viewport: React.FC<ViewportProps> = ({
       });
 
       if (Object.keys(updatedMap).length > 0) {
+        draggedObjectsRef.current = {
+          ...draggedObjectsRef.current,
+          ...updatedMap
+        };
         onUpdateObjects(updatedMap);
       }
       return;
@@ -734,7 +753,10 @@ export const Viewport: React.FC<ViewportProps> = ({
   // Handle Mouseup
   const handleMouseUp = () => {
     setIsPanning(false);
-    setIsDraggingObj(false);
+    if (isDraggingObj) {
+      setIsDraggingObj(false);
+      onCommitDrag(draggedObjectsRef.current);
+    }
   };
 
   // Handle Wheel (Zoom centered on mouse)
@@ -806,6 +828,29 @@ export const Viewport: React.FC<ViewportProps> = ({
             <line x1="12" y1="2" x2="12" y2="22" />
           </svg>
           Drag
+        </button>
+        <div className="toolbar-divider" />
+        <button
+          className="toolbar-btn icon-only"
+          onClick={onUndo}
+          disabled={!canUndo}
+          title="Undo last action (Ctrl+Z)"
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M3 7v6h6" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        <button
+          className="toolbar-btn icon-only"
+          onClick={onRedo}
+          disabled={!canRedo}
+          title="Redo last undone action (Ctrl+Y / Ctrl+Shift+Z)"
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M21 7v6h-6" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
         </button>
       </div>
 

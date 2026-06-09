@@ -1100,3 +1100,19 @@ body, html {
   color: var(--bg-darker);
 }
 
+.toolbar-divider {
+  width: 1px;
+  background-color: var(--border-color);
+  margin: 4px 2px;
+}
+
+.toolbar-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.toolbar-btn:disabled:hover {
+  background: none;
+  color: var(--text-normal);
+}
+

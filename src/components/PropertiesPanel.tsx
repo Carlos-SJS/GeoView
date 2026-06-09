@@ -15,6 +15,7 @@ import { ACCENT_PALETTE, ONE_DARK_COLORS } from '../utils/theme';
 interface PropertyNumericInputProps {
   value: number;
   onChange: (val: number) => void;
+  onCommit?: (val: number) => void;
   defaultValue?: number;
   placeholder?: string;
   className?: string;
@@ -24,6 +25,7 @@ interface PropertyNumericInputProps {
 const PropertyNumericInput: React.FC<PropertyNumericInputProps> = ({
   value,
   onChange,
+  onCommit,
   defaultValue = 0,
   placeholder,
   className,
@@ -65,7 +67,11 @@ const PropertyNumericInput: React.FC<PropertyNumericInputProps> = ({
       parsed = min;
     }
     setLocalVal(parsed.toString());
-    onChange(parsed);
+    if (onCommit) {
+      onCommit(parsed);
+    } else {
+      onChange(parsed);
+    }
   };
 
   const handleFocus = () => {
@@ -81,6 +87,11 @@ const PropertyNumericInput: React.FC<PropertyNumericInputProps> = ({
       onBlur={handleBlur}
       onFocus={handleFocus}
       placeholder={placeholder}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          (e.target as HTMLInputElement).blur();
+        }
+      }}
     />
   );
 };
@@ -88,7 +99,7 @@ const PropertyNumericInput: React.FC<PropertyNumericInputProps> = ({
 interface PropertiesPanelProps {
   selectedId: string | null;
   objects: Record<string, GeometricObject>;
-  onChangeObject: (obj: GeometricObject) => void;
+  onChangeObject: (obj: GeometricObject, isCommit?: boolean) => void;
   onFocusObject: (id: string) => void;
   onSelect: (id: string | null) => void;
 }
@@ -148,11 +159,11 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     });
   };
 
-  const updateProp = (updatedFields: Partial<GeometricObject>) => {
+  const updateProp = (updatedFields: Partial<GeometricObject>, isCommit: boolean = true) => {
     onChangeObject({
       ...obj,
       ...updatedFields,
-    } as GeometricObject);
+    } as GeometricObject, isCommit);
   };
 
   // Render object-specific editors
@@ -165,7 +176,8 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             <span className="coord-prefix">X</span>
             <PropertyNumericInput
               value={pt.x}
-              onChange={(val) => updateProp({ x: val })}
+              onChange={(val) => updateProp({ x: val }, false)}
+              onCommit={(val) => updateProp({ x: val }, true)}
               defaultValue={0}
             />
           </div>
@@ -173,7 +185,8 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             <span className="coord-prefix">Y</span>
             <PropertyNumericInput
               value={pt.y}
-              onChange={(val) => updateProp({ y: val })}
+              onChange={(val) => updateProp({ y: val }, false)}
+              onCommit={(val) => updateProp({ y: val }, true)}
               defaultValue={0}
             />
           </div>
@@ -198,9 +211,9 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             onChange={(e) => {
               const val = e.target.value;
               if (val === '__custom__') {
-                updateProp({ p1: { x: 0, y: 0 } });
+                updateProp({ p1: { x: 0, y: 0 } }, true);
               } else {
-                updateProp({ p1: val });
+                updateProp({ p1: val }, true);
               }
             }}
           >
@@ -213,13 +226,15 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             <div className="coordinate-inputs sub-input">
               <PropertyNumericInput
                 value={(p1Val as Point).x}
-                onChange={(val) => updateProp({ p1: { x: val, y: (p1Val as Point).y } })}
+                onChange={(val) => updateProp({ p1: { x: val, y: (p1Val as Point).y } }, false)}
+                onCommit={(val) => updateProp({ p1: { x: val, y: (p1Val as Point).y } }, true)}
                 defaultValue={0}
                 placeholder="X"
               />
               <PropertyNumericInput
                 value={(p1Val as Point).y}
-                onChange={(val) => updateProp({ p1: { x: (p1Val as Point).x, y: val } })}
+                onChange={(val) => updateProp({ p1: { x: (p1Val as Point).x, y: val } }, false)}
+                onCommit={(val) => updateProp({ p1: { x: (p1Val as Point).x, y: val } }, true)}
                 defaultValue={0}
                 placeholder="Y"
               />
@@ -234,9 +249,9 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             onChange={(e) => {
               const val = e.target.value;
               if (val === '__custom__') {
-                updateProp({ p2: { x: 5, y: 5 } });
+                updateProp({ p2: { x: 5, y: 5 } }, true);
               } else {
-                updateProp({ p2: val });
+                updateProp({ p2: val }, true);
               }
             }}
           >
@@ -249,13 +264,15 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             <div className="coordinate-inputs sub-input">
               <PropertyNumericInput
                 value={(p2Val as Point).x}
-                onChange={(val) => updateProp({ p2: { x: val, y: (p2Val as Point).y } })}
+                onChange={(val) => updateProp({ p2: { x: val, y: (p2Val as Point).y } }, false)}
+                onCommit={(val) => updateProp({ p2: { x: val, y: (p2Val as Point).y } }, true)}
                 defaultValue={0}
                 placeholder="X"
               />
               <PropertyNumericInput
                 value={(p2Val as Point).y}
-                onChange={(val) => updateProp({ p2: { x: (p2Val as Point).x, y: val } })}
+                onChange={(val) => updateProp({ p2: { x: (p2Val as Point).x, y: val } }, false)}
+                onCommit={(val) => updateProp({ p2: { x: (p2Val as Point).x, y: val } }, true)}
                 defaultValue={0}
                 placeholder="Y"
               />
@@ -279,9 +296,9 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             onChange={(e) => {
               const val = e.target.value;
               if (val === '__custom__') {
-                updateProp({ center: { x: 0, y: 0 } });
+                updateProp({ center: { x: 0, y: 0 } }, true);
               } else {
-                updateProp({ center: val });
+                updateProp({ center: val }, true);
               }
             }}
           >
@@ -294,13 +311,15 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             <div className="coordinate-inputs sub-input">
               <PropertyNumericInput
                 value={(centerVal as Point).x}
-                onChange={(val) => updateProp({ center: { x: val, y: (centerVal as Point).y } })}
+                onChange={(val) => updateProp({ center: { x: val, y: (centerVal as Point).y } }, false)}
+                onCommit={(val) => updateProp({ center: { x: val, y: (centerVal as Point).y } }, true)}
                 defaultValue={0}
                 placeholder="X"
               />
               <PropertyNumericInput
                 value={(centerVal as Point).y}
-                onChange={(val) => updateProp({ center: { x: (centerVal as Point).x, y: val } })}
+                onChange={(val) => updateProp({ center: { x: (centerVal as Point).x, y: val } }, false)}
+                onCommit={(val) => updateProp({ center: { x: (centerVal as Point).x, y: val } }, true)}
                 defaultValue={0}
                 placeholder="Y"
               />
@@ -312,7 +331,8 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         <PropertyNumericInput
           className="radius-input"
           value={cr.radius}
-          onChange={(val) => updateProp({ radius: val })}
+          onChange={(val) => updateProp({ radius: val }, false)}
+          onCommit={(val) => updateProp({ radius: val }, true)}
           defaultValue={0.1}
           min={0.001}
         />
@@ -328,10 +348,10 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       } else {
         newPoints[index] = val;
       }
-      updateProp({ points: newPoints });
+      updateProp({ points: newPoints }, true);
     };
 
-    const handleCoordChange = (index: number, dim: 'x' | 'y', val: number) => {
+    const handleCoordChange = (index: number, dim: 'x' | 'y', val: number, isCommit: boolean) => {
       const newPoints = [...poly.points];
       const current = newPoints[index];
       if (typeof current !== 'string') {
@@ -339,12 +359,12 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           ...current,
           [dim]: val
         };
-        updateProp({ points: newPoints });
+        updateProp({ points: newPoints }, isCommit);
       }
     };
 
     const addVertex = () => {
-      updateProp({ points: [...poly.points, { x: 0, y: 0 }] });
+      updateProp({ points: [...poly.points, { x: 0, y: 0 }] }, true);
     };
 
     const removeVertex = (index: number) => {
@@ -353,7 +373,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         return;
       }
       const newPoints = poly.points.filter((_, i) => i !== index);
-      updateProp({ points: newPoints });
+      updateProp({ points: newPoints }, true);
     };
 
     return (
@@ -380,13 +400,15 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                   <div className="coordinate-inputs sub-input mini">
                     <PropertyNumericInput
                       value={(ptVal as Point).x}
-                      onChange={(val) => handleCoordChange(i, 'x', val)}
+                      onChange={(val) => handleCoordChange(i, 'x', val, false)}
+                      onCommit={(val) => handleCoordChange(i, 'x', val, true)}
                       defaultValue={0}
                       placeholder="X"
                     />
                     <PropertyNumericInput
                       value={(ptVal as Point).y}
-                      onChange={(val) => handleCoordChange(i, 'y', val)}
+                      onChange={(val) => handleCoordChange(i, 'y', val, false)}
+                      onCommit={(val) => handleCoordChange(i, 'y', val, true)}
                       defaultValue={0}
                       placeholder="Y"
                     />

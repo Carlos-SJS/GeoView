@@ -116,6 +116,8 @@ export interface ParseResult {
   errors: string[];
   clearState?: boolean;
   deletedNames?: string[];
+  undoState?: boolean;
+  redoState?: boolean;
 }
 
 /**
@@ -155,6 +157,24 @@ export function parseScript(
     const lineNum = lineIdx + 1;
     
     try {
+      // Check for undo command
+      if (line.toLowerCase() === 'undo' || line.toLowerCase() === 'undo()') {
+        return {
+          objects: [],
+          errors: [],
+          undoState: true
+        };
+      }
+
+      // Check for redo command
+      if (line.toLowerCase() === 'redo' || line.toLowerCase() === 'redo()') {
+        return {
+          objects: [],
+          errors: [],
+          redoState: true
+        };
+      }
+
       // Check for clear command
       if (line.toLowerCase() === 'clear' || line.toLowerCase() === 'clear()') {
         parsedObjects.length = 0;
