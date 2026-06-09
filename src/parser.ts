@@ -1,4 +1,5 @@
 import type { GeometricObject, ObjectType } from './types';
+import { resolvePoint } from './utils/geometry';
 
 // Validates C++ variable name conventions
 const CPP_VAR_REGEX = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
@@ -222,6 +223,21 @@ export function parseScript(
         // Validate name uniqueness
         if (getActiveNamesSet().has(name)) {
           throw new Error(`Variable name "${name}" is already in use.`);
+        }
+      }
+
+      // Preprocess expression to convert v + w or v - w into add(v, w) or sub(v, w)
+      // e.g., "v1 + v2" -> "add(v1, v2)", "v1 - v2, \"red\"" -> "sub(v1, v2, \"red\")"
+      const opMatch = expr.match(/^([a-zA-Z0-9_]+)\s*([\+-])\s*([a-zA-Z0-9_]+)(?:\s*,\s*(.+))?$/);
+      if (opMatch) {
+        const left = opMatch[1];
+        const op = opMatch[2];
+        const right = opMatch[3];
+        const extra = opMatch[4] ? `, ${opMatch[4]}` : '';
+        if (op === '+') {
+          expr = `add(${left}, ${right}${extra})`;
+        } else {
+          expr = `sub(${left}, ${right}${extra})`;
         }
       }
 
@@ -534,8 +550,89 @@ export function parseScript(
           break;
         }
 
+        case 'add': {
+          if (argTokens.length !== 2) {
+            throw new Error(`"add" requires exactly 2 vector references: add(v, w).`);
+          }
+          const [vName, wName] = argTokens;
+          const vecV = Object.values(activeObjects).find(o => o.name === vName);
+          if (!vecV || vecV.type !== 'vector') {
+            throw new Error(`Vector reference "${vName}" is not defined or is not a vector.`);
+          }
+          const vecW = Object.values(activeObjects).find(o => o.name === wName);
+          if (!vecW || vecW.type !== 'vector') {
+            throw new Error(`Vector reference "${wName}" is not defined or is not a vector.`);
+          }
+
+          const vP1 = resolvePoint(vecV.p1, activeObjects);
+          const vP2 = resolvePoint(vecV.p2, activeObjects);
+          const wP1 = resolvePoint(vecW.p1, activeObjects);
+          const wP2 = resolvePoint(vecW.p2, activeObjects);
+
+          if (!vP1 || !vP2 || !wP1 || !wP2) {
+            throw new Error(`Could not resolve coordinates for vectors "${vName}" or "${wName}".`);
+          }
+
+          const dxW = wP2.x - wP1.x;
+          const dyW = wP2.y - wP1.y;
+
+          // Resulting vector starts at v.p1, and ends at v.p1 + displacement(v) + displacement(w) -> i.e., v.p2 + displacement(w)
+          const p1 = { x: vP1.x, y: vP1.y };
+          const p2 = { x: vP2.x + dxW, y: vP2.y + dyW };
+
+          const finalName = name || generateDefaultName('vector', getActiveNamesSet());
+          createdObject = {
+            id: `vc_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            name: finalName,
+            type: 'vector',
+            p1,
+            p2,
+            color: colorParam || getNextColor(),
+            visible: true
+          };
+          break;
+        }
+
+        case 'sub': {
+          if (argTokens.length !== 2) {
+            throw new Error(`"sub" requires exactly 2 vector references: sub(v, w).`);
+          }
+          const [vName, wName] = argTokens;
+          const vecV = Object.values(activeObjects).find(o => o.name === vName);
+          if (!vecV || vecV.type !== 'vector') {
+            throw new Error(`Vector reference "${vName}" is not defined or is not a vector.`);
+          }
+          const vecW = Object.values(activeObjects).find(o => o.name === wName);
+          if (!vecW || vecW.type !== 'vector') {
+            throw new Error(`Vector reference "${wName}" is not defined or is not a vector.`);
+          }
+
+          const vP2 = resolvePoint(vecV.p2, activeObjects);
+          const wP2 = resolvePoint(vecW.p2, activeObjects);
+
+          if (!vP2 || !wP2) {
+            throw new Error(`Could not resolve tip coordinates for vectors "${vName}" or "${wName}".`);
+          }
+
+          // Resulting vector starts at w.p2 (tip of w) and points to v.p2 (tip of v)
+          const p1 = { x: wP2.x, y: wP2.y };
+          const p2 = { x: vP2.x, y: vP2.y };
+
+          const finalName = name || generateDefaultName('vector', getActiveNamesSet());
+          createdObject = {
+            id: `vc_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            name: finalName,
+            type: 'vector',
+            p1,
+            p2,
+            color: colorParam || getNextColor(),
+            visible: true
+          };
+          break;
+        }
+
         default:
-          throw new Error(`Unknown geometry function "${funcName}". Supported functions are: point, line, circle, polygon, angle, vec.`);
+          throw new Error(`Unknown geometry function "${funcName}". Supported functions are: point, line, circle, polygon, angle, vec, add, sub.`);
       }
 
       // Add to rolling list of parsed objects and active set
@@ -570,6 +667,8 @@ const SYNTAX_SUGGESTIONS: Record<string, Suggestion> = {
   polygon: { syntax: 'polygon(p1, p2, p3, ...)', description: 'Create a polygon through a set of points' },
   angle: { syntax: 'angle(A, B, C)', description: 'Measure angle ABC at vertex B' },
   vec: { syntax: 'vec(p2) or vec(p1, p2)', description: 'Create a vector starting at p1 (default (0,0)) pointing to p2' },
+  add: { syntax: 'add(v, w) or v + w', description: 'Add two vectors together' },
+  sub: { syntax: 'sub(v, w) or v - w', description: 'Subtract vector w from vector v (starts at tip of w, points to tip of v)' },
 };
 
 export function getAutocompleteSuggestion(typed: string): Suggestion | null {
