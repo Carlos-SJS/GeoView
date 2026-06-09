@@ -128,15 +128,23 @@ export function parseScript(
         }
       }
 
-      // 2. Parse function call: funcName(args)
-      const funcMatch = expr.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*\((.*)\)$/);
-      if (!funcMatch) {
-        throw new Error(`Syntax error: could not parse expression "${expr}". Expected format "func(args)".`);
+      // 2. Parse function call: funcName(args) or coordinate shortcut (x, y)
+      let funcName = '';
+      let argTokens: string[] = [];
+      
+      const coordMatch = expr.match(COORD_REGEX);
+      if (coordMatch) {
+        funcName = 'point';
+        argTokens = [coordMatch[1], coordMatch[2]];
+      } else {
+        const funcMatch = expr.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*\((.*)\)$/);
+        if (!funcMatch) {
+          throw new Error(`Syntax error: could not parse expression "${expr}". Expected format "func(args)" or coordinate pair "(x,y)".`);
+        }
+        funcName = funcMatch[1].toLowerCase();
+        const argsStr = funcMatch[2].trim();
+        argTokens = parseArguments(argsStr);
       }
-
-      const funcName = funcMatch[1].toLowerCase();
-      const argsStr = funcMatch[2].trim();
-      const argTokens = parseArguments(argsStr);
 
       let createdObject: GeometricObject;
 
