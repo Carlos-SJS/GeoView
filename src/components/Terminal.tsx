@@ -5,7 +5,7 @@ import { ONE_DARK_COLORS } from '../utils/theme';
 
 interface TerminalProps {
   logs: TerminalLog[];
-  onExecuteCommand: (commandText: string) => void;
+  onExecuteCommand: (commandText: string) => boolean;
   onClearLogs: () => void;
   isCollapsed: boolean;
   setIsCollapsed: (collapsed: boolean) => void;
@@ -64,9 +64,11 @@ export const Terminal: React.FC<TerminalProps> = ({
 
   const handleSubmit = () => {
     if (!inputValue.trim()) return;
-    onExecuteCommand(inputValue);
-    setInputValue('');
-    setLastError(null);
+    const success = onExecuteCommand(inputValue);
+    if (success) {
+      setInputValue('');
+      setLastError(null);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -178,7 +180,11 @@ export const Terminal: React.FC<TerminalProps> = ({
         )}
 
         <div className="input-row">
-          <span className="term-prompt">&gt;</span>
+          {lastError ? (
+            <span className="term-prompt error" title={lastError}>✗</span>
+          ) : (
+            <span className="term-prompt">&gt;</span>
+          )}
           <textarea
             className="terminal-input"
             value={inputValue}

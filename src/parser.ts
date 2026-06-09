@@ -54,6 +54,47 @@ export function generateDefaultName(
   return `${prefix}${counter}`;
 }
 
+// Helper to extract optional color parameter from argument tokens
+export function extractColorToken(tokens: string[]): string | null {
+  if (tokens.length === 0) return null;
+  let last = tokens[tokens.length - 1].trim();
+  
+  let hasQuotes = false;
+  if ((last.startsWith('"') && last.endsWith('"')) || (last.startsWith("'") && last.endsWith("'"))) {
+    last = last.substring(1, last.length - 1).trim();
+    hasQuotes = true;
+  }
+  
+  const CSS_COLOR_NAMES = [
+    'black','silver','gray','white','maroon','red','purple','fuchsia','green','lime','olive','yellow',
+    'navy','blue','teal','aqua','orange','aliceblue','antiquewhite','aquamarine','azure','beige','bisque',
+    'blanchedalmond','blueviolet','brown','burlywood','cadetblue','chartreuse','chocolate','coral',
+    'cornflowerblue','cornsilk','crimson','cyan','darkblue','darkcyan','darkgoldenrod','darkgray','darkgreen',
+    'darkgrey','darkkhaki','darkmagenta','darkolivegreen','darkorange','darkorchid','darkred','darksalmon',
+    'darkseagreen','darkslateemphasis','darkslateblue','darkslategray','darkslategrey','darkturquoise','darkviolet',
+    'deeppink','deepskyblue','dimgray','dimgrey','dodgerblue','firebrick','floralwhite','forestgreen',
+    'gainsboro','ghostwhite','gold','goldenrod','greenyellow','grey','honeydew','hotpink','indianred',
+    'indigo','ivory','khaki','lavender','lavenderblush','lawngreen','lemonchiffon','lightblue','lightcoral',
+    'lightcyan','lightgoldenrodyellow','lightgray','lightgreen','lightgrey','lightpink','lightsalmon',
+    'lightseagreen','lightskyblue','lightslategray','lightslategrey','lightsteelblue','lightyellow','limegreen',
+    'linen','magenta','mediumaquamarine','mediumblue','mediumorchid','mediumpurple','mediumseagreen','mediumslate',
+    'mediumspringgreen','mediumturquoise','mediumvioletred','midnightblue','mintcream','mistyrose','moccasin',
+    'navajowhite','oldlace','olivedrab','orangered','orchid','palegoldenrod','palegreen','paleturquoise',
+    'palevioletred','papayawhip','peachpuff','peru','pink','plum','powderblue','rosybrown','royalblue',
+    'saddlebrown','salmon','sandybrown','seagreen','seashell','sienna','skyblue','slateblue','indigo','purple',
+    'saddlebrown','sienna','tan','teal','thistle','tomato','turquoise','violet','wheat','white','yellow','yellowgreen'
+  ];
+  
+  const isHex = /^#([A-Fa-f0-9]{3}|[A-Fa-f0-9]{6}|[A-Fa-f0-9]{8})$/.test(last);
+  const isColorName = CSS_COLOR_NAMES.includes(last.toLowerCase());
+  
+  if (isHex || hasQuotes || isColorName) {
+    tokens.pop();
+    return last;
+  }
+  return null;
+}
+
 export interface ParseResult {
   objects: GeometricObject[];
   errors: string[];
@@ -147,14 +188,17 @@ export function parseScript(
         }
       }
 
-      // 2. Parse function call: funcName(args) or coordinate shortcut (x, y)
+      // 2. Parse function call: funcName(args) or coordinate shortcut (x, y) or (x, y, color)
       let funcName = '';
       let argTokens: string[] = [];
       
-      const coordMatch = expr.match(COORD_REGEX);
-      if (coordMatch) {
+      const coordShortcutMatch = expr.match(/^\(\s*(-?\d*\.?\d+)\s*,\s*(-?\d*\.?\d+)(?:\s*,\s*([^)]+))?\s*\)$/);
+      if (coordShortcutMatch) {
         funcName = 'point';
-        argTokens = [coordMatch[1], coordMatch[2]];
+        argTokens = [coordShortcutMatch[1], coordShortcutMatch[2]];
+        if (coordShortcutMatch[3]) {
+          argTokens.push(coordShortcutMatch[3].trim());
+        }
       } else {
         const funcMatch = expr.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*\((.*)\)$/);
         if (!funcMatch) {
@@ -164,6 +208,9 @@ export function parseScript(
         const argsStr = funcMatch[2].trim();
         argTokens = parseArguments(argsStr);
       }
+
+      // Extract optional color parameter
+      const colorParam = extractColorToken(argTokens);
 
       let createdObject: GeometricObject;
 
@@ -187,7 +234,7 @@ export function parseScript(
             type: 'point',
             x,
             y,
-            color: getNextColor(),
+            color: colorParam || getNextColor(),
             visible: true
           };
           break;
@@ -249,7 +296,7 @@ export function parseScript(
             type: 'line',
             p1,
             p2,
-            color: getNextColor(),
+            color: colorParam || getNextColor(),
             visible: true
           };
           break;
@@ -306,7 +353,7 @@ export function parseScript(
             type: 'circle',
             center,
             radius,
-            color: getNextColor(),
+            color: colorParam || getNextColor(),
             visible: true
           };
           break;
@@ -340,7 +387,7 @@ export function parseScript(
             name: finalName,
             type: 'polygon',
             points,
-            color: getNextColor(),
+            color: colorParam || getNextColor(),
             visible: true
           };
           break;
@@ -370,7 +417,7 @@ export function parseScript(
             pA,
             pB,
             pC,
-            color: getNextColor(),
+            color: colorParam || getNextColor(),
             visible: true
           };
           break;

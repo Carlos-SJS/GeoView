@@ -12,6 +12,79 @@ import {
 } from '../utils/geometry';
 import { ACCENT_PALETTE, ONE_DARK_COLORS } from '../utils/theme';
 
+interface PropertyNumericInputProps {
+  value: number;
+  onChange: (val: number) => void;
+  defaultValue?: number;
+  placeholder?: string;
+  className?: string;
+  min?: number;
+}
+
+const PropertyNumericInput: React.FC<PropertyNumericInputProps> = ({
+  value,
+  onChange,
+  defaultValue = 0,
+  placeholder,
+  className,
+  min,
+}) => {
+  const [localVal, setLocalVal] = useState(value.toString());
+  const [isFocused, setIsFocused] = useState(false);
+
+  // Sync with value when NOT in focus (from dragging or selecting a new object)
+  useEffect(() => {
+    if (!isFocused) {
+      setLocalVal(value.toString());
+    }
+  }, [value, isFocused]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    setLocalVal(raw);
+
+    // Parse the value
+    let parsed = parseFloat(raw);
+    if (isNaN(parsed)) {
+      parsed = defaultValue;
+    }
+    if (min !== undefined && parsed < min) {
+      parsed = min;
+    }
+
+    onChange(parsed);
+  };
+
+  const handleBlur = () => {
+    setIsFocused(false);
+    let parsed = parseFloat(localVal);
+    if (isNaN(parsed)) {
+      parsed = defaultValue;
+    }
+    if (min !== undefined && parsed < min) {
+      parsed = min;
+    }
+    setLocalVal(parsed.toString());
+    onChange(parsed);
+  };
+
+  const handleFocus = () => {
+    setIsFocused(true);
+  };
+
+  return (
+    <input
+      type="text"
+      className={className}
+      value={localVal}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      onFocus={handleFocus}
+      placeholder={placeholder}
+    />
+  );
+};
+
 interface PropertiesPanelProps {
   selectedId: string | null;
   objects: Record<string, GeometricObject>;
@@ -90,20 +163,18 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         <div className="coordinate-inputs">
           <div className="input-field">
             <span className="coord-prefix">X</span>
-            <input
-              type="number"
-              step="any"
+            <PropertyNumericInput
               value={pt.x}
-              onChange={(e) => updateProp({ x: parseFloat(e.target.value) || 0 })}
+              onChange={(val) => updateProp({ x: val })}
+              defaultValue={0}
             />
           </div>
           <div className="input-field">
             <span className="coord-prefix">Y</span>
-            <input
-              type="number"
-              step="any"
+            <PropertyNumericInput
               value={pt.y}
-              onChange={(e) => updateProp({ y: parseFloat(e.target.value) || 0 })}
+              onChange={(val) => updateProp({ y: val })}
+              defaultValue={0}
             />
           </div>
         </div>
@@ -140,18 +211,16 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           </select>
           {!isP1Ref && (
             <div className="coordinate-inputs sub-input">
-              <input
-                type="number"
-                step="any"
+              <PropertyNumericInput
                 value={(p1Val as Point).x}
-                onChange={(e) => updateProp({ p1: { x: parseFloat(e.target.value) || 0, y: (p1Val as Point).y } })}
+                onChange={(val) => updateProp({ p1: { x: val, y: (p1Val as Point).y } })}
+                defaultValue={0}
                 placeholder="X"
               />
-              <input
-                type="number"
-                step="any"
+              <PropertyNumericInput
                 value={(p1Val as Point).y}
-                onChange={(e) => updateProp({ p1: { x: (p1Val as Point).x, y: parseFloat(e.target.value) || 0 } })}
+                onChange={(val) => updateProp({ p1: { x: (p1Val as Point).x, y: val } })}
+                defaultValue={0}
                 placeholder="Y"
               />
             </div>
@@ -178,18 +247,16 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           </select>
           {!isP2Ref && (
             <div className="coordinate-inputs sub-input">
-              <input
-                type="number"
-                step="any"
+              <PropertyNumericInput
                 value={(p2Val as Point).x}
-                onChange={(e) => updateProp({ p2: { x: parseFloat(e.target.value) || 0, y: (p2Val as Point).y } })}
+                onChange={(val) => updateProp({ p2: { x: val, y: (p2Val as Point).y } })}
+                defaultValue={0}
                 placeholder="X"
               />
-              <input
-                type="number"
-                step="any"
+              <PropertyNumericInput
                 value={(p2Val as Point).y}
-                onChange={(e) => updateProp({ p2: { x: (p2Val as Point).x, y: parseFloat(e.target.value) || 0 } })}
+                onChange={(val) => updateProp({ p2: { x: (p2Val as Point).x, y: val } })}
+                defaultValue={0}
                 placeholder="Y"
               />
             </div>
@@ -225,18 +292,16 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           </select>
           {!isCenterRef && (
             <div className="coordinate-inputs sub-input">
-              <input
-                type="number"
-                step="any"
+              <PropertyNumericInput
                 value={(centerVal as Point).x}
-                onChange={(e) => updateProp({ center: { x: parseFloat(e.target.value) || 0, y: (centerVal as Point).y } })}
+                onChange={(val) => updateProp({ center: { x: val, y: (centerVal as Point).y } })}
+                defaultValue={0}
                 placeholder="X"
               />
-              <input
-                type="number"
-                step="any"
+              <PropertyNumericInput
                 value={(centerVal as Point).y}
-                onChange={(e) => updateProp({ center: { x: (centerVal as Point).x, y: parseFloat(e.target.value) || 0 } })}
+                onChange={(val) => updateProp({ center: { x: (centerVal as Point).x, y: val } })}
+                defaultValue={0}
                 placeholder="Y"
               />
             </div>
@@ -244,16 +309,12 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         </div>
 
         <label className="prop-label" style={{ marginTop: '12px' }}>Radius</label>
-        <input
+        <PropertyNumericInput
           className="radius-input"
-          type="number"
-          step="any"
-          min="0.001"
           value={cr.radius}
-          onChange={(e) => {
-            const r = parseFloat(e.target.value) || 0.1;
-            updateProp({ radius: r > 0 ? r : 0.1 });
-          }}
+          onChange={(val) => updateProp({ radius: val })}
+          defaultValue={0.1}
+          min={0.001}
         />
       </div>
     );
@@ -317,18 +378,16 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                 </select>
                 {!isRef && (
                   <div className="coordinate-inputs sub-input mini">
-                    <input
-                      type="number"
-                      step="any"
+                    <PropertyNumericInput
                       value={(ptVal as Point).x}
-                      onChange={(e) => handleCoordChange(i, 'x', parseFloat(e.target.value) || 0)}
+                      onChange={(val) => handleCoordChange(i, 'x', val)}
+                      defaultValue={0}
                       placeholder="X"
                     />
-                    <input
-                      type="number"
-                      step="any"
+                    <PropertyNumericInput
                       value={(ptVal as Point).y}
-                      onChange={(e) => handleCoordChange(i, 'y', parseFloat(e.target.value) || 0)}
+                      onChange={(val) => handleCoordChange(i, 'y', val)}
+                      defaultValue={0}
                       placeholder="Y"
                     />
                   </div>

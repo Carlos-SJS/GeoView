@@ -27,6 +27,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onAddLog,
 }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportedScriptText, setExportedScriptText] = useState('');
 
   const objectsList = Object.values(objects);
 
@@ -114,24 +116,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // Helper to create object script command representation
   const getObjectCommand = (obj: GeometricObject): string => {
+    const colorArg = `, "${obj.color}"`;
     switch (obj.type) {
       case 'point':
-        return `${obj.name} = point(${obj.x}, ${obj.y})`;
+        return `${obj.name} = point(${obj.x}, ${obj.y}${colorArg})`;
       case 'line': {
         const p1Str = typeof obj.p1 === 'string' ? obj.p1 : `(${obj.p1.x},${obj.p1.y})`;
         const p2Str = typeof obj.p2 === 'string' ? obj.p2 : `(${obj.p2.x},${obj.p2.y})`;
-        return `${obj.name} = line(${p1Str}, ${p2Str})`;
+        return `${obj.name} = line(${p1Str}, ${p2Str}${colorArg})`;
       }
       case 'circle': {
         const centerStr = typeof obj.center === 'string' ? obj.center : `(${obj.center.x},${obj.center.y})`;
-        return `${obj.name} = circle(${centerStr}, ${obj.radius})`;
+        return `${obj.name} = circle(${centerStr}, ${obj.radius}${colorArg})`;
       }
       case 'polygon': {
         const ptsStr = obj.points.map(p => typeof p === 'string' ? p : `(${p.x},${p.y})`).join(', ');
-        return `${obj.name} = polygon(${ptsStr})`;
+        return `${obj.name} = polygon(${ptsStr}${colorArg})`;
       }
       case 'angle':
-        return `${obj.name} = angle(${obj.pA}, ${obj.pB}, ${obj.pC})`;
+        return `${obj.name} = angle(${obj.pA}, ${obj.pB}, ${obj.pC}${colorArg})`;
     }
   };
 
@@ -149,17 +152,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
     });
 
     const scriptText = sorted.map(getObjectCommand).join('\n');
+    setExportedScriptText(scriptText);
 
     // Copy to clipboard
     navigator.clipboard.writeText(scriptText)
       .then(() => {
         onAddLog(`// Exported Script:\n${scriptText}`, true);
-        alert("Geometric script copied to clipboard! You can paste it into the command bar later to restore this drawing.");
+        setShowExportModal(true);
       })
       .catch((err) => {
         console.error("Failed to copy script: ", err);
-        alert(`Failed to copy automatically. Here is your script:\n\n${scriptText}`);
+        // Show modal so they can copy manually
+        setShowExportModal(true);
       });
+  };
+
+  const handleDownloadTxt = () => {
+    const element = document.createElement("a");
+    const file = new Blob([exportedScriptText], { type: 'text/plain;charset=utf-8' });
+    element.href = URL.createObjectURL(file);
+    element.download = "geoview_export.txt";
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+    setShowExportModal(false);
   };
 
   // Instantiates a default object
@@ -455,6 +471,55 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         )}
       </div>
+
+      {/* Export Confirmation Fullscreen Modal */}
+      {showExportModal && (
+        <div className="modal-overlay" onClick={() => setShowExportModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">Export Drawing State</h2>
+              <button
+                onClick={() => setShowExportModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: ONE_DARK_COLORS.textMuted,
+                  fontSize: '20px',
+                  cursor: 'pointer',
+                  padding: 0,
+                  lineHeight: 1
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <p>Geometric script has been successfully copied to your clipboard!</p>
+              <p style={{ marginTop: '8px', fontSize: '12.5px', opacity: 0.8 }}>You can also copy the commands directly from the text box below or download them as a text file.</p>
+              <textarea
+                className="modal-textarea"
+                readOnly
+                value={exportedScriptText}
+                onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+              />
+            </div>
+            <div className="modal-actions">
+              <button
+                className="modal-btn secondary"
+                onClick={() => setShowExportModal(false)}
+              >
+                OK
+              </button>
+              <button
+                className="modal-btn primary"
+                onClick={handleDownloadTxt}
+              >
+                Download .txt File
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

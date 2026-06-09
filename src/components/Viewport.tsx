@@ -391,9 +391,12 @@ export const Viewport: React.FC<ViewportProps> = ({
 
       // Draw Name label
       ctx.fillStyle = ONE_DARK_COLORS.textLight;
-      ctx.font = 'bold 12px sans-serif';
+      ctx.font = 'bold 13px sans-serif';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'bottom';
+      ctx.strokeStyle = '#1e2227';
+      ctx.lineWidth = 2.5;
+      ctx.strokeText(obj.name, sc.x + 6, sc.y - 6);
       ctx.fillText(obj.name, sc.x + 6, sc.y - 6);
     });
 

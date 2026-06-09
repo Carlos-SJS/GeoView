@@ -59,7 +59,7 @@ function App() {
   };
 
   // Execute terminal script
-  const handleExecuteCommand = (commandText: string) => {
+  const handleExecuteCommand = (commandText: string): boolean => {
     const res = parseScript(commandText, objects, ACCENT_PALETTE);
     
     if (res.errors.length > 0) {
@@ -69,6 +69,7 @@ function App() {
         ...prev,
         { command: commandText, success: false, error: errStr, timestamp: new Date() }
       ]);
+      return false;
     } else {
       // Apply clearState and deletedNames if any
       let newObjs = res.clearState ? {} : { ...objects };
@@ -96,6 +97,7 @@ function App() {
         ...prev,
         { command: commandText, success: true, timestamp: new Date() }
       ]);
+      return true;
     }
   };
 
