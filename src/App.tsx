@@ -70,8 +70,16 @@ function App() {
         { command: commandText, success: false, error: errStr, timestamp: new Date() }
       ]);
     } else {
+      // Apply clearState and deletedNames if any
+      let newObjs = res.clearState ? {} : { ...objects };
+      
+      if (res.deletedNames && res.deletedNames.length > 0) {
+        res.deletedNames.forEach(name => {
+          delete newObjs[name];
+        });
+      }
+
       // Append successful objects
-      const newObjs = { ...objects };
       res.objects.forEach(obj => {
         newObjs[obj.name] = obj;
       });
@@ -80,6 +88,8 @@ function App() {
       // Select last created object
       if (res.objects.length > 0) {
         setSelectedId(res.objects[res.objects.length - 1].id);
+      } else if (res.clearState) {
+        setSelectedId(null);
       }
       
       setLogs(prev => [

@@ -57,6 +57,8 @@ export function generateDefaultName(
 export interface ParseResult {
   objects: GeometricObject[];
   errors: string[];
+  clearState?: boolean;
+  deletedNames?: string[];
 }
 
 /**
@@ -70,6 +72,8 @@ export function parseScript(
 ): ParseResult {
   const errors: string[] = [];
   const parsedObjects: GeometricObject[] = [];
+  let clearState = false;
+  const deletedNames: string[] = [];
   
   // Clone existing objects map to resolve references during batch evaluation
   const activeObjects = { ...existingObjects };
@@ -94,6 +98,16 @@ export function parseScript(
     const lineNum = lineIdx + 1;
     
     try {
+      // Check for clear command
+      if (line.toLowerCase() === 'clear' || line.toLowerCase() === 'clear()') {
+        parsedObjects.length = 0;
+        for (const key of Object.keys(activeObjects)) {
+          delete activeObjects[key];
+        }
+        clearState = true;
+        deletedNames.length = 0;
+        continue;
+      }
       // 1. Check for assignment: name = function(...)
       const assignMatch = line.match(/^([a-zA-Z0-9_]+)\s*=\s*(.+)$/);
       let name: string | null = null;
@@ -350,7 +364,9 @@ export function parseScript(
 
   return {
     objects: parsedObjects,
-    errors
+    errors,
+    clearState,
+    deletedNames
   };
 }
 
