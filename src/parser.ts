@@ -1,0 +1,394 @@
+import type { GeometricObject, ObjectType } from './types';
+
+// Validates C++ variable name conventions
+const CPP_VAR_REGEX = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
+// Matches coordinate pair: (x, y)
+const COORD_REGEX = /^\(\s*(-?\d*\.?\d+)\s*,\s*(-?\d*\.?\d+)\s*\)$/;
+
+// Matches number (int or float)
+const NUMBER_REGEX = /^-?\d*\.?\d+$/;
+
+// Splits parameters inside parentheses, keeping coordinate parentheses intact
+export function parseArguments(argsStr: string): string[] {
+  const args: string[] = [];
+  let current = '';
+  let parenDepth = 0;
+  
+  for (let i = 0; i < argsStr.length; i++) {
+    const char = argsStr[i];
+    if (char === '(') {
+      parenDepth++;
+      current += char;
+    } else if (char === ')') {
+      parenDepth--;
+      current += char;
+    } else if (char === ',' && parenDepth === 0) {
+      args.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  if (current.trim().length > 0) {
+    args.push(current.trim());
+  }
+  return args;
+}
+
+// Generate unique default name for an object type
+export function generateDefaultName(
+  type: ObjectType,
+  existingNames: Set<string>
+): string {
+  let prefix = 'p';
+  if (type === 'line') prefix = 'l';
+  if (type === 'circle') prefix = 'c';
+  if (type === 'polygon') prefix = 'poly';
+  if (type === 'angle') prefix = 'ang';
+  
+  let counter = 1;
+  while (existingNames.has(`${prefix}${counter}`)) {
+    counter++;
+  }
+  return `${prefix}${counter}`;
+}
+
+export interface ParseResult {
+  objects: GeometricObject[];
+  errors: string[];
+}
+
+/**
+ * Parses a script string of geometry commands.
+ * Supports multi-line commands separated by newlines, spaces, or semicolons.
+ */
+export function parseScript(
+  scriptText: string,
+  existingObjects: Record<string, GeometricObject>,
+  themeColors: string[]
+): ParseResult {
+  const errors: string[] = [];
+  const parsedObjects: GeometricObject[] = [];
+  
+  // Clone existing objects map to resolve references during batch evaluation
+  const activeObjects = { ...existingObjects };
+  const getActiveNamesSet = () => new Set(Object.values(activeObjects).map(o => o.name));
+  
+  // Color helper (cycling through theme colors)
+  let colorIndex = Object.keys(existingObjects).length;
+  const getNextColor = () => {
+    const color = themeColors[colorIndex % themeColors.length];
+    colorIndex++;
+    return color;
+  };
+
+  // Split commands by newlines or semicolons
+  const lines = scriptText
+    .split(/[\n;]/)
+    .map(line => line.trim())
+    .filter(line => line.length > 0);
+
+  for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+    const line = lines[lineIdx];
+    const lineNum = lineIdx + 1;
+    
+    try {
+      // 1. Check for assignment: name = function(...)
+      const assignMatch = line.match(/^([a-zA-Z0-9_]+)\s*=\s*(.+)$/);
+      let name: string | null = null;
+      let expr = line;
+
+      if (assignMatch) {
+        name = assignMatch[1].trim();
+        expr = assignMatch[2].trim();
+
+        // Validate name structure
+        if (!CPP_VAR_REGEX.test(name)) {
+          throw new Error(`Invalid variable name "${name}". Must start with a letter or underscore and contain only alphanumeric characters and underscores.`);
+        }
+        
+        // Validate name uniqueness
+        if (getActiveNamesSet().has(name)) {
+          throw new Error(`Variable name "${name}" is already in use.`);
+        }
+      }
+
+      // 2. Parse function call: funcName(args)
+      const funcMatch = expr.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*\((.*)\)$/);
+      if (!funcMatch) {
+        throw new Error(`Syntax error: could not parse expression "${expr}". Expected format "func(args)".`);
+      }
+
+      const funcName = funcMatch[1].toLowerCase();
+      const argsStr = funcMatch[2].trim();
+      const argTokens = parseArguments(argsStr);
+
+      let createdObject: GeometricObject;
+
+      // 3. Process commands
+      switch (funcName) {
+        case 'point': {
+          if (argTokens.length !== 2) {
+            throw new Error(`"point" requires exactly 2 arguments: point(x, y). Received ${argTokens.length}.`);
+          }
+          const [xs, ys] = argTokens;
+          if (!NUMBER_REGEX.test(xs) || !NUMBER_REGEX.test(ys)) {
+            throw new Error(`"point" coordinates must be numbers. Received: point(${xs}, ${ys})`);
+          }
+          const x = parseFloat(xs);
+          const y = parseFloat(ys);
+          
+          const finalName = name || generateDefaultName('point', getActiveNamesSet());
+          createdObject = {
+            id: `pt_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            name: finalName,
+            type: 'point',
+            x,
+            y,
+            color: getNextColor(),
+            visible: true
+          };
+          break;
+        }
+
+        case 'line': {
+          if (argTokens.length !== 2 && argTokens.length !== 4) {
+            throw new Error(`"line" requires either 2 points/coordinates, or 4 coordinate values: line(p1, p2) or line(x1, y1, x2, y2).`);
+          }
+
+          let p1: string | { x: number; y: number };
+          let p2: string | { x: number; y: number };
+
+          if (argTokens.length === 2) {
+            const [arg1, arg2] = argTokens;
+
+            // Handle arg1
+            const coord1 = arg1.match(COORD_REGEX);
+            if (coord1) {
+              p1 = { x: parseFloat(coord1[1]), y: parseFloat(coord1[2]) };
+            } else if (CPP_VAR_REGEX.test(arg1)) {
+              // Check if point exists in active objects
+              const pt = Object.values(activeObjects).find(o => o.name === arg1);
+              if (!pt || pt.type !== 'point') {
+                throw new Error(`Point reference "${arg1}" is not defined.`);
+              }
+              p1 = arg1;
+            } else {
+              throw new Error(`Invalid line argument "${arg1}". Expected point name or coordinate pair like (x,y).`);
+            }
+
+            // Handle arg2
+            const coord2 = arg2.match(COORD_REGEX);
+            if (coord2) {
+              p2 = { x: parseFloat(coord2[1]), y: parseFloat(coord2[2]) };
+            } else if (CPP_VAR_REGEX.test(arg2)) {
+              const pt = Object.values(activeObjects).find(o => o.name === arg2);
+              if (!pt || pt.type !== 'point') {
+                throw new Error(`Point reference "${arg2}" is not defined.`);
+              }
+              p2 = arg2;
+            } else {
+              throw new Error(`Invalid line argument "${arg2}". Expected point name or coordinate pair like (x,y).`);
+            }
+          } else {
+            // 4 arguments: x1, y1, x2, y2
+            const [x1s, y1s, x2s, y2s] = argTokens;
+            if (!NUMBER_REGEX.test(x1s) || !NUMBER_REGEX.test(y1s) || !NUMBER_REGEX.test(x2s) || !NUMBER_REGEX.test(y2s)) {
+              throw new Error(`Coordinates must be numbers in line(${x1s}, ${y1s}, ${x2s}, ${y2s})`);
+            }
+            p1 = { x: parseFloat(x1s), y: parseFloat(y1s) };
+            p2 = { x: parseFloat(x2s), y: parseFloat(y2s) };
+          }
+
+          const finalName = name || generateDefaultName('line', getActiveNamesSet());
+          createdObject = {
+            id: `ln_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            name: finalName,
+            type: 'line',
+            p1,
+            p2,
+            color: getNextColor(),
+            visible: true
+          };
+          break;
+        }
+
+        case 'circle': {
+          if (argTokens.length !== 2 && argTokens.length !== 3) {
+            throw new Error(`"circle" requires 2 or 3 arguments: circle(center_point, radius) or circle(x, y, radius).`);
+          }
+
+          let center: string | { x: number; y: number };
+          let radius: number;
+
+          if (argTokens.length === 2) {
+            const [centerArg, radiusArg] = argTokens;
+            
+            // Resolve center (point reference or coordinate)
+            const coord = centerArg.match(COORD_REGEX);
+            if (coord) {
+              center = { x: parseFloat(coord[1]), y: parseFloat(coord[2]) };
+            } else if (CPP_VAR_REGEX.test(centerArg)) {
+              const pt = Object.values(activeObjects).find(o => o.name === centerArg);
+              if (!pt || pt.type !== 'point') {
+                throw new Error(`Point reference "${centerArg}" is not defined.`);
+              }
+              center = centerArg;
+            } else {
+              throw new Error(`Invalid circle center "${centerArg}". Expected point name or coordinate pair.`);
+            }
+
+            // Resolve radius
+            if (!NUMBER_REGEX.test(radiusArg)) {
+              throw new Error(`Circle radius must be a number. Received "${radiusArg}".`);
+            }
+            radius = parseFloat(radiusArg);
+          } else {
+            // 3 arguments: x, y, r
+            const [xs, ys, rs] = argTokens;
+            if (!NUMBER_REGEX.test(xs) || !NUMBER_REGEX.test(ys) || !NUMBER_REGEX.test(rs)) {
+              throw new Error(`Circle parameters must be numbers. Received circle(${xs}, ${ys}, ${rs}).`);
+            }
+            center = { x: parseFloat(xs), y: parseFloat(ys) };
+            radius = parseFloat(rs);
+          }
+
+          if (radius <= 0) {
+            throw new Error(`Circle radius must be greater than 0. Received ${radius}.`);
+          }
+
+          const finalName = name || generateDefaultName('circle', getActiveNamesSet());
+          createdObject = {
+            id: `cr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            name: finalName,
+            type: 'circle',
+            center,
+            radius,
+            color: getNextColor(),
+            visible: true
+          };
+          break;
+        }
+
+        case 'polygon': {
+          if (argTokens.length < 3) {
+            throw new Error(`"polygon" requires at least 3 vertices. Received ${argTokens.length}.`);
+          }
+
+          const points: (string | { x: number; y: number })[] = [];
+          
+          for (const arg of argTokens) {
+            const coord = arg.match(COORD_REGEX);
+            if (coord) {
+              points.push({ x: parseFloat(coord[1]), y: parseFloat(coord[2]) });
+            } else if (CPP_VAR_REGEX.test(arg)) {
+              const pt = Object.values(activeObjects).find(o => o.name === arg);
+              if (!pt || pt.type !== 'point') {
+                throw new Error(`Point reference "${arg}" is not defined.`);
+              }
+              points.push(arg);
+            } else {
+              throw new Error(`Invalid polygon vertex "${arg}". Expected point name or coordinate pair.`);
+            }
+          }
+
+          const finalName = name || generateDefaultName('polygon', getActiveNamesSet());
+          createdObject = {
+            id: `pl_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            name: finalName,
+            type: 'polygon',
+            points,
+            color: getNextColor(),
+            visible: true
+          };
+          break;
+        }
+
+        case 'angle': {
+          if (argTokens.length !== 3) {
+            throw new Error(`"angle" requires exactly 3 point references in order: angle(A, B, C). Received ${argTokens.length}.`);
+          }
+          const [pA, pB, pC] = argTokens;
+          
+          for (const pRef of [pA, pB, pC]) {
+            if (!CPP_VAR_REGEX.test(pRef)) {
+              throw new Error(`Invalid point reference "${pRef}" in angle. Expected point variable names.`);
+            }
+            const pt = Object.values(activeObjects).find(o => o.name === pRef);
+            if (!pt || pt.type !== 'point') {
+              throw new Error(`Point reference "${pRef}" is not defined.`);
+            }
+          }
+
+          const finalName = name || generateDefaultName('angle', getActiveNamesSet());
+          createdObject = {
+            id: `an_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            name: finalName,
+            type: 'angle',
+            pA,
+            pB,
+            pC,
+            color: getNextColor(),
+            visible: true
+          };
+          break;
+        }
+
+        default:
+          throw new Error(`Unknown geometry function "${funcName}". Supported functions are: point, line, circle, polygon, angle.`);
+      }
+
+      // Add to rolling list of parsed objects and active set
+      parsedObjects.push(createdObject);
+      activeObjects[createdObject.name] = createdObject;
+
+    } catch (e: any) {
+      errors.push(`Line ${lineNum}: ${e.message}`);
+    }
+  }
+
+  return {
+    objects: parsedObjects,
+    errors
+  };
+}
+
+/**
+ * Helper to generate suggestion text depending on prefix typed
+ */
+export interface Suggestion {
+  syntax: string;
+  description: string;
+}
+
+const SYNTAX_SUGGESTIONS: Record<string, Suggestion> = {
+  point: { syntax: 'point(x, y)', description: 'Create a point at coordinates (x, y)' },
+  line: { syntax: 'line(p1, p2) or line(x1, y1, x2, y2)', description: 'Create a line segment between points/coordinates' },
+  circle: { syntax: 'circle(center, radius) or circle(x, y, radius)', description: 'Create a circle with center point and radius' },
+  polygon: { syntax: 'polygon(p1, p2, p3, ...)', description: 'Create a polygon through a set of points' },
+  angle: { syntax: 'angle(A, B, C)', description: 'Measure angle ABC at vertex B' },
+};
+
+export function getAutocompleteSuggestion(typed: string): Suggestion | null {
+  // Strip assignments like "A = "
+  const expr = typed.replace(/^[^=]*=\s*/, '').trim().toLowerCase();
+  
+  if (!expr) return null;
+  
+  // Find which function the user is typing
+  for (const [key, sug] of Object.entries(SYNTAX_SUGGESTIONS)) {
+    if (key.startsWith(expr) || expr.startsWith(key)) {
+      // If the user has finished writing valid syntax, e.g. "point(5,6)", we hide the tooltip
+      if (expr.includes(')') && expr.indexOf(')') === expr.lastIndexOf(')')) {
+        const afterParen = expr.substring(expr.indexOf('(') + 1);
+        // If it looks complete, hide it
+        if (!afterParen.endsWith(',') && afterParen.split(',').length >= 2) {
+          return null;
+        }
+      }
+      return sug;
+    }
+  }
+  return null;
+}
