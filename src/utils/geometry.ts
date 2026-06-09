@@ -308,7 +308,8 @@ export function getDistanceToObject(
     case 'point': {
       return getDistanceToPoint(px, py, obj);
     }
-    case 'line': {
+    case 'line':
+    case 'vector': {
       const p1 = resolvePoint(obj.p1, objects);
       const p2 = resolvePoint(obj.p2, objects);
       if (!p1 || !p2) return Infinity;

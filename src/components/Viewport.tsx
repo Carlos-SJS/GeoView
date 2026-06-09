@@ -447,6 +447,64 @@ export const Viewport: React.FC<ViewportProps> = ({
       );
     });
 
+    // 4.5. Draw Vectors
+    objectsList.forEach(obj => {
+      if (obj.type !== 'vector' || !obj.visible) return;
+      const p1 = resolvePoint(obj.p1, objects);
+      const p2 = resolvePoint(obj.p2, objects);
+      if (!p1 || !p2) return;
+
+      const s1 = worldToScreen(p1.x, p1.y);
+      const s2 = worldToScreen(p2.x, p2.y);
+      const isSel = selectedId === obj.id;
+
+      // Glow backing line if selected
+      if (isSel) {
+        ctx.strokeStyle = hexToRgba(obj.color, 0.4);
+        ctx.lineWidth = 7;
+        ctx.beginPath();
+        ctx.moveTo(s1.x, s1.y);
+        ctx.lineTo(s2.x, s2.y);
+        ctx.stroke();
+      }
+
+      // Draw main line body
+      ctx.strokeStyle = obj.color;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(s1.x, s1.y);
+      ctx.lineTo(s2.x, s2.y);
+      ctx.stroke();
+
+      // Draw solid filled arrow head at s2
+      const ang = Math.atan2(s2.y - s1.y, s2.x - s1.x);
+      const headLength = 12; // size in pixels
+      const headAngle = 25 * Math.PI / 180; // 25 degrees
+
+      ctx.fillStyle = obj.color;
+      ctx.beginPath();
+      ctx.moveTo(s2.x, s2.y);
+      ctx.lineTo(
+        s2.x - headLength * Math.cos(ang - headAngle),
+        s2.y - headLength * Math.sin(ang - headAngle)
+      );
+      ctx.lineTo(
+        s2.x - headLength * Math.cos(ang + headAngle),
+        s2.y - headLength * Math.sin(ang + headAngle)
+      );
+      ctx.closePath();
+      ctx.fill();
+
+      // Label at midpoint
+      ctx.fillStyle = ONE_DARK_COLORS.textMuted;
+      ctx.font = '11px sans-serif';
+      ctx.fillText(
+        obj.name,
+        (s1.x + s2.x) / 2 + 5,
+        (s1.y + s2.y) / 2 - 5
+      );
+    });
+
     // 5. Draw Points on top
     objectsList.forEach(obj => {
       if (obj.type !== 'point' || !obj.visible) return;
@@ -583,6 +641,54 @@ export const Viewport: React.FC<ViewportProps> = ({
               });
             }
           });
+        } else if (draggedObj.type === 'vector') {
+          const p2Val = resolvePoint(draggedObj.p2, objects);
+          const distToTip = p2Val ? getDistance(worldClick, p2Val) * scale : Infinity;
+          
+          if (distToTip < 15) {
+            const p = draggedObj.p2;
+            if (typeof p === 'string') {
+              const pt = objects[p];
+              if (pt && pt.type === 'point') {
+                targets.push({
+                  type: 'point_object',
+                  name: pt.name,
+                  initialX: pt.x,
+                  initialY: pt.y
+                });
+              }
+            } else {
+              targets.push({
+                type: 'custom_property',
+                objId: draggedObj.id,
+                propPath: 'p2',
+                initialX: p.x,
+                initialY: p.y
+              });
+            }
+          } else {
+            [draggedObj.p1, draggedObj.p2].forEach((p, idx) => {
+              if (typeof p === 'string') {
+                const pt = objects[p];
+                if (pt && pt.type === 'point') {
+                  targets.push({
+                    type: 'point_object',
+                    name: pt.name,
+                    initialX: pt.x,
+                    initialY: pt.y
+                  });
+                }
+              } else {
+                targets.push({
+                  type: 'custom_property',
+                  objId: draggedObj.id,
+                  propPath: idx === 0 ? 'p1' : 'p2',
+                  initialX: p.x,
+                  initialY: p.y
+                });
+              }
+            });
+          }
         } else if (draggedObj.type === 'polygon') {
           draggedObj.points.forEach((p, idx) => {
             if (typeof p === 'string') {
@@ -705,9 +811,9 @@ export const Viewport: React.FC<ViewportProps> = ({
               
             if (target.propPath === 'center' && obj.type === 'circle') {
               obj.center = { x: target.initialX + dx, y: target.initialY + dy };
-            } else if (target.propPath === 'p1' && obj.type === 'line') {
+            } else if (target.propPath === 'p1' && (obj.type === 'line' || obj.type === 'vector')) {
               obj.p1 = { x: target.initialX + dx, y: target.initialY + dy };
-            } else if (target.propPath === 'p2' && obj.type === 'line') {
+            } else if (target.propPath === 'p2' && (obj.type === 'line' || obj.type === 'vector')) {
               obj.p2 = { x: target.initialX + dx, y: target.initialY + dy };
             } else if (target.propPath === 'polygon_vertex' && obj.type === 'polygon' && target.polygonIndex !== undefined) {
               const newPts = [...obj.points];

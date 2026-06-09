@@ -46,6 +46,7 @@ export function generateDefaultName(
   if (type === 'circle') prefix = 'c';
   if (type === 'polygon') prefix = 'poly';
   if (type === 'angle') prefix = 'ang';
+  if (type === 'vector') prefix = 'v';
   
   let counter = 1;
   while (existingNames.has(`${prefix}${counter}`)) {
@@ -467,8 +468,74 @@ export function parseScript(
           break;
         }
 
+        case 'vec':
+        case 'vector': {
+          if (argTokens.length !== 1 && argTokens.length !== 2) {
+            throw new Error(`"vec" requires 1 or 2 arguments: vec(p2) or vec(p1, p2).`);
+          }
+
+          let p1: string | { x: number; y: number } = { x: 0, y: 0 };
+          let p2: string | { x: number; y: number };
+
+          if (argTokens.length === 1) {
+            const arg = argTokens[0];
+            const coord = arg.match(COORD_REGEX);
+            if (coord) {
+              p2 = { x: parseFloat(coord[1]), y: parseFloat(coord[2]) };
+            } else if (CPP_VAR_REGEX.test(arg)) {
+              const pt = Object.values(activeObjects).find(o => o.name === arg);
+              if (!pt || pt.type !== 'point') {
+                throw new Error(`Point reference "${arg}" is not defined.`);
+              }
+              p2 = arg;
+            } else {
+              throw new Error(`Invalid vector argument "${arg}". Expected point name or coordinate pair.`);
+            }
+          } else {
+            const [arg1, arg2] = argTokens;
+
+            const coord1 = arg1.match(COORD_REGEX);
+            if (coord1) {
+              p1 = { x: parseFloat(coord1[1]), y: parseFloat(coord1[2]) };
+            } else if (CPP_VAR_REGEX.test(arg1)) {
+              const pt = Object.values(activeObjects).find(o => o.name === arg1);
+              if (!pt || pt.type !== 'point') {
+                throw new Error(`Point reference "${arg1}" is not defined.`);
+              }
+              p1 = arg1;
+            } else {
+              throw new Error(`Invalid vector start point "${arg1}". Expected point name or coordinate pair.`);
+            }
+
+            const coord2 = arg2.match(COORD_REGEX);
+            if (coord2) {
+              p2 = { x: parseFloat(coord2[1]), y: parseFloat(coord2[2]) };
+            } else if (CPP_VAR_REGEX.test(arg2)) {
+              const pt = Object.values(activeObjects).find(o => o.name === arg2);
+              if (!pt || pt.type !== 'point') {
+                throw new Error(`Point reference "${arg2}" is not defined.`);
+              }
+              p2 = arg2;
+            } else {
+              throw new Error(`Invalid vector end point "${arg2}". Expected point name or coordinate pair.`);
+            }
+          }
+
+          const finalName = name || generateDefaultName('vector', getActiveNamesSet());
+          createdObject = {
+            id: `vc_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            name: finalName,
+            type: 'vector',
+            p1,
+            p2,
+            color: colorParam || getNextColor(),
+            visible: true
+          };
+          break;
+        }
+
         default:
-          throw new Error(`Unknown geometry function "${funcName}". Supported functions are: point, line, circle, polygon, angle.`);
+          throw new Error(`Unknown geometry function "${funcName}". Supported functions are: point, line, circle, polygon, angle, vec.`);
       }
 
       // Add to rolling list of parsed objects and active set
@@ -502,6 +569,7 @@ const SYNTAX_SUGGESTIONS: Record<string, Suggestion> = {
   circle: { syntax: 'circle(center, radius) or circle(x, y, radius)', description: 'Create a circle with center point and radius' },
   polygon: { syntax: 'polygon(p1, p2, p3, ...)', description: 'Create a polygon through a set of points' },
   angle: { syntax: 'angle(A, B, C)', description: 'Measure angle ABC at vertex B' },
+  vec: { syntax: 'vec(p2) or vec(p1, p2)', description: 'Create a vector starting at p1 (default (0,0)) pointing to p2' },
 };
 
 export function getAutocompleteSuggestion(typed: string): Suggestion | null {

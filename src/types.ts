@@ -1,4 +1,4 @@
-export type ObjectType = 'point' | 'line' | 'circle' | 'polygon' | 'angle';
+export type ObjectType = 'point' | 'line' | 'circle' | 'polygon' | 'angle' | 'vector';
 
 export interface PointObject {
   id: string;
@@ -55,12 +55,24 @@ export interface AngleObject {
   fill?: boolean;
 }
 
+export interface VectorObject {
+  id: string;
+  name: string;
+  type: 'vector';
+  p1: string | { x: number; y: number }; // Start coordinate or point name (defaults to (0,0))
+  p2: string | { x: number; y: number }; // End coordinate or point name
+  color: string;
+  visible: boolean;
+  fill?: boolean;
+}
+
 export type GeometricObject =
   | PointObject
   | LineObject
   | CircleObject
   | PolygonObject
-  | AngleObject;
+  | AngleObject
+  | VectorObject;
 
 export interface ViewportState {
   scale: number;    // Pixels per unit

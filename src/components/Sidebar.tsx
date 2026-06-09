@@ -64,6 +64,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <path d="M9 17 A4 4 0 0 1 15 17" fill="none" stroke="currentColor" strokeWidth="1.5" />
       </svg>
     ),
+    vector: (
+      <svg className="obj-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5">
+        <line x1="4" y1="20" x2="18" y2="6" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+        <polyline points="12 6 18 6 18 12" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx="4" cy="20" r="1.5" fill="currentColor" />
+      </svg>
+    ),
     visible: (
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
@@ -148,6 +155,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       }
       case 'angle':
         return `${obj.name} = angle(${obj.pA}, ${obj.pB}, ${obj.pC}${colorArg})`;
+      case 'vector': {
+        const p1Str = typeof obj.p1 === 'string' ? obj.p1 : `(${obj.p1.x},${obj.p1.y})`;
+        const p2Str = typeof obj.p2 === 'string' ? obj.p2 : `(${obj.p2.x},${obj.p2.y})`;
+        return `${obj.name} = vec(${p1Str}, ${p2Str}${colorArg})`;
+      }
     }
   };
 
@@ -158,9 +170,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
       return;
     }
 
-    // Order items: points first, then lines/circles/polygons, then angles
+    // Order items: points first, then vectors, lines, circles, polygons, then angles
     const sorted = [...objectsList].sort((a, b) => {
-      const rank = { point: 1, line: 2, circle: 3, polygon: 4, angle: 5 };
+      const rank = { point: 1, vector: 2, line: 3, circle: 4, polygon: 5, angle: 6 };
       return rank[a.type] - rank[b.type];
     });
 
@@ -201,6 +213,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
     let newObj: GeometricObject;
 
     switch (type) {
+      case 'vector':
+        newObj = {
+          id,
+          name,
+          type: 'vector',
+          p1: { x: 0, y: 0 },
+          p2: { x: 3, y: 3 },
+          color,
+          visible: true
+        };
+        break;
       case 'point':
         newObj = { id, name, type: 'point', x: 0, y: 0, color, visible: true };
         break;
@@ -347,6 +370,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       case 'angle':
         dupObj = { ...obj, id: newId, name: newName };
         break;
+      case 'vector': {
+        const p1 = typeof obj.p1 === 'string' ? obj.p1 : { x: obj.p1.x + 1, y: obj.p1.y + 1 };
+        const p2 = typeof obj.p2 === 'string' ? obj.p2 : { x: obj.p2.x + 1, y: obj.p2.y + 1 };
+        dupObj = { ...obj, id: newId, name: newName, p1, p2 };
+        break;
+      }
     }
 
     onAddObject(dupObj);
@@ -361,6 +390,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
         const p1s = typeof obj.p1 === 'string' ? obj.p1 : `(${obj.p1.x},${obj.p1.y})`;
         const p2s = typeof obj.p2 === 'string' ? obj.p2 : `(${obj.p2.x},${obj.p2.y})`;
         return `${p1s} ➔ ${p2s}`;
+      }
+      case 'vector': {
+        const p1s = typeof obj.p1 === 'string' ? obj.p1 : `(${obj.p1.x},${obj.p1.y})`;
+        const p2s = typeof obj.p2 === 'string' ? obj.p2 : `(${obj.p2.x},${obj.p2.y})`;
+        return `vec: ${p1s} ➔ ${p2s}`;
       }
       case 'circle': {
         const c = typeof obj.center === 'string' ? obj.center : `(${obj.center.x},${obj.center.y})`;

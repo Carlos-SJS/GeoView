@@ -522,6 +522,20 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         });
         break;
       }
+      case 'vector': {
+        const pt1 = resolvePoint(obj.p1, objects);
+        const pt2 = resolvePoint(obj.p2, objects);
+        if (pt1 && pt2) {
+          const dx = pt2.x - pt1.x;
+          const dy = pt2.y - pt1.y;
+          const mag = Math.sqrt(dx * dx + dy * dy);
+          list.push({ label: 'Component Form', value: `[${dx.toFixed(4)}, ${dy.toFixed(4)}]` });
+          list.push({ label: 'Magnitude', value: mag.toFixed(4) });
+          list.push({ label: 'Start Point', value: `(${pt1.x.toFixed(4)}, ${pt1.y.toFixed(4)})` });
+          list.push({ label: 'End Point', value: `(${pt2.x.toFixed(4)}, ${pt2.y.toFixed(4)})` });
+        }
+        break;
+      }
     }
     return list;
   };
@@ -634,7 +648,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
 
       {/* Editor Section */}
       {obj.type === 'point' && renderPointEditor(obj as any)}
-      {obj.type === 'line' && renderLineEditor(obj as any)}
+      {(obj.type === 'line' || obj.type === 'vector') && renderLineEditor(obj as any)}
       {obj.type === 'circle' && renderCircleEditor(obj as any)}
       {obj.type === 'polygon' && renderPolygonEditor(obj as any)}
       {obj.type === 'angle' && renderAngleEditor(obj as any)}
