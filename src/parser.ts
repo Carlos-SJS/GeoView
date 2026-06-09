@@ -95,6 +95,22 @@ export function extractColorToken(tokens: string[]): string | null {
   return null;
 }
 
+// Helper to extract optional boolean parameter from argument tokens (for figure fill)
+export function extractBooleanToken(tokens: string[]): boolean | null {
+  if (tokens.length === 0) return null;
+  const last = tokens[tokens.length - 1].trim().toLowerCase();
+  
+  if (last === 'true') {
+    tokens.pop();
+    return true;
+  }
+  if (last === 'false') {
+    tokens.pop();
+    return false;
+  }
+  return null;
+}
+
 export interface ParseResult {
   objects: GeometricObject[];
   errors: string[];
@@ -209,6 +225,9 @@ export function parseScript(
         argTokens = parseArguments(argsStr);
       }
 
+      // Extract optional fill parameter (boolean)
+      const fillParam = extractBooleanToken(argTokens);
+
       // Extract optional color parameter
       const colorParam = extractColorToken(argTokens);
 
@@ -235,6 +254,7 @@ export function parseScript(
             x,
             y,
             color: colorParam || getNextColor(),
+            fill: fillParam !== false,
             visible: true
           };
           break;
@@ -297,6 +317,7 @@ export function parseScript(
             p1,
             p2,
             color: colorParam || getNextColor(),
+            fill: fillParam !== false,
             visible: true
           };
           break;
@@ -354,6 +375,7 @@ export function parseScript(
             center,
             radius,
             color: colorParam || getNextColor(),
+            fill: fillParam !== false,
             visible: true
           };
           break;
@@ -388,6 +410,7 @@ export function parseScript(
             type: 'polygon',
             points,
             color: colorParam || getNextColor(),
+            fill: fillParam !== false,
             visible: true
           };
           break;
@@ -418,6 +441,7 @@ export function parseScript(
             pB,
             pC,
             color: colorParam || getNextColor(),
+            fill: fillParam !== false,
             visible: true
           };
           break;

@@ -554,6 +554,19 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         />
       </div>
 
+      {/* Fill Figure toggle (only for circle and polygon) */}
+      {(obj.type === 'circle' || obj.type === 'polygon') && (
+        <div className="props-group row-align">
+          <label className="prop-label" style={{ margin: 0 }}>Fill Figure</label>
+          <input
+            type="checkbox"
+            className="visibility-checkbox"
+            checked={obj.fill !== false}
+            onChange={(e) => updateProp({ fill: e.target.checked })}
+          />
+        </div>
+      )}
+
       {/* Color Swatch Panel */}
       <div className="props-group">
         <label className="prop-label">Color Swatch</label>

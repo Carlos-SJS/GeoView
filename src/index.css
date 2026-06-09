@@ -1059,3 +1059,44 @@ body, html {
   to { opacity: 1; transform: scale(1); }
 }
 
+/* Floating Canvas Toolbar */
+.canvas-toolbar {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background-color: rgba(33, 37, 43, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--selection-color);
+  border-radius: 8px;
+  padding: 4px;
+  display: flex;
+  gap: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 10;
+}
+
+.toolbar-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--text-normal);
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.toolbar-btn:hover {
+  background-color: var(--selection-color);
+  color: var(--text-bright);
+}
+
+.toolbar-btn.active {
+  background-color: var(--accent-blue);
+  color: var(--bg-darker);
+}
+

@@ -8,6 +8,7 @@ export interface PointObject {
   y: number;
   color: string;
   visible: boolean;
+  fill?: boolean;
 }
 
 export interface LineObject {
@@ -18,6 +19,7 @@ export interface LineObject {
   p2: string | { x: number; y: number }; // Point name (e.g. 'B') or absolute coordinate
   color: string;
   visible: boolean;
+  fill?: boolean;
 }
 
 export interface CircleObject {
@@ -28,6 +30,7 @@ export interface CircleObject {
   radius: number;
   color: string;
   visible: boolean;
+  fill?: boolean;
 }
 
 export interface PolygonObject {
@@ -37,6 +40,7 @@ export interface PolygonObject {
   points: (string | { x: number; y: number })[]; // Point names or coordinates
   color: string;
   visible: boolean;
+  fill?: boolean;
 }
 
 export interface AngleObject {
@@ -48,6 +52,7 @@ export interface AngleObject {
   pC: string; // Point name reference
   color: string;
   visible: boolean;
+  fill?: boolean;
 }
 
 export type GeometricObject =

@@ -289,6 +289,13 @@ function App() {
     setViewport(adjustedState);
   };
 
+  const handleUpdateObjects = (updatedMap: Record<string, GeometricObject>) => {
+    setObjects(prev => ({
+      ...prev,
+      ...updatedMap
+    }));
+  };
+
   return (
     <div className="geoview-app" style={{ color: ONE_DARK_COLORS.text }}>
       <div className="app-main-layout">
@@ -313,6 +320,7 @@ function App() {
             onSelect={setSelectedId}
             viewportState={viewport}
             setViewportState={handleViewportOffsetAdjust}
+            onUpdateObjects={handleUpdateObjects}
           />
           <Terminal
             logs={logs}

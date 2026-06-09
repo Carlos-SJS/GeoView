@@ -117,6 +117,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Helper to create object script command representation
   const getObjectCommand = (obj: GeometricObject): string => {
     const colorArg = `, "${obj.color}"`;
+    const fillArg = obj.fill === false ? ', false' : '';
     switch (obj.type) {
       case 'point':
         return `${obj.name} = point(${obj.x}, ${obj.y}${colorArg})`;
@@ -127,11 +128,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       }
       case 'circle': {
         const centerStr = typeof obj.center === 'string' ? obj.center : `(${obj.center.x},${obj.center.y})`;
-        return `${obj.name} = circle(${centerStr}, ${obj.radius}${colorArg})`;
+        return `${obj.name} = circle(${centerStr}, ${obj.radius}${colorArg}${fillArg})`;
       }
       case 'polygon': {
         const ptsStr = obj.points.map(p => typeof p === 'string' ? p : `(${p.x},${p.y})`).join(', ');
-        return `${obj.name} = polygon(${ptsStr}${colorArg})`;
+        return `${obj.name} = polygon(${ptsStr}${colorArg}${fillArg})`;
       }
       case 'angle':
         return `${obj.name} = angle(${obj.pA}, ${obj.pB}, ${obj.pC}${colorArg})`;
