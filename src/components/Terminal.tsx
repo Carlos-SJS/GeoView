@@ -24,6 +24,10 @@ export const Terminal: React.FC<TerminalProps> = ({
   
   const consoleEndRef = useRef<HTMLDivElement | null>(null);
 
+  // History navigation states
+  const [historyIndex, setHistoryIndex] = useState<number>(-1);
+  const [draftInput, setDraftInput] = useState<string>('');
+
   // Scroll to bottom of terminal logs on new entry
   useEffect(() => {
     if (consoleEndRef.current) {
@@ -68,6 +72,8 @@ export const Terminal: React.FC<TerminalProps> = ({
     if (success) {
       setInputValue('');
       setLastError(null);
+      setHistoryIndex(-1);
+      setDraftInput('');
     }
   };
 
@@ -76,11 +82,41 @@ export const Terminal: React.FC<TerminalProps> = ({
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
+      return;
+    }
+
+    if (e.key === 'ArrowUp') {
+      if (historyIndex === -1) {
+        if (logs.length > 0) {
+          setDraftInput(inputValue);
+          setHistoryIndex(logs.length - 1);
+          setInputValue(logs[logs.length - 1].command);
+          e.preventDefault();
+        }
+      } else if (historyIndex > 0) {
+        setHistoryIndex(historyIndex - 1);
+        setInputValue(logs[historyIndex - 1].command);
+        e.preventDefault();
+      }
+    } else if (e.key === 'ArrowDown') {
+      if (historyIndex !== -1) {
+        if (historyIndex === logs.length - 1) {
+          setHistoryIndex(-1);
+          setInputValue(draftInput);
+          e.preventDefault();
+        } else {
+          setHistoryIndex(historyIndex + 1);
+          setInputValue(logs[historyIndex + 1].command);
+          e.preventDefault();
+        }
+      }
     }
   };
 
   const handleLoadCommand = (cmd: string) => {
     setInputValue(cmd);
+    setHistoryIndex(-1);
+    setDraftInput(cmd);
   };
 
   return (
@@ -188,7 +224,12 @@ export const Terminal: React.FC<TerminalProps> = ({
           <textarea
             className="terminal-input"
             value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              setInputValue(val);
+              setHistoryIndex(-1);
+              setDraftInput(val);
+            }}
             onKeyDown={handleKeyDown}
             placeholder="Type geometry commands (e.g. point(1, 2) or A = circle((0,0), 5))"
             rows={Math.min(5, inputValue.split('\n').length || 1)}
