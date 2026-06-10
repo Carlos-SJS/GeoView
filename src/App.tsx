@@ -14,16 +14,39 @@ import './App.css';
 const INITIAL_OBJECTS: Record<string, GeometricObject> = {};
 
 function App() {
-  const [objects, setObjects] = useState<Record<string, GeometricObject>>(INITIAL_OBJECTS);
+  const [objects, setObjects] = useState<Record<string, GeometricObject>>(() => {
+    try {
+      const saved = localStorage.getItem('geoview_objects');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error('Failed to parse geoview_objects', e);
+    }
+    return INITIAL_OBJECTS;
+  });
   const [past, setPast] = useState<Record<string, GeometricObject>[]>([]);
   const [future, setFuture] = useState<Record<string, GeometricObject>[]>([]);
   const dragStartObjects = useRef<Record<string, GeometricObject> | null>(null);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [viewport, setViewport] = useState<ViewportState>({
-    scale: 45,
-    offsetX: 400,
-    offsetY: 300,
+  const [viewport, setViewport] = useState<ViewportState>(() => {
+    try {
+      const saved = localStorage.getItem('geoview_viewport');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error('Failed to parse geoview_viewport', e);
+    }
+    // Centered defaults
+    const canvasWidth = window.innerWidth - 340;
+    const canvasHeight = window.innerHeight - 300;
+    return {
+      scale: 40,
+      offsetX: canvasWidth / 2,
+      offsetY: canvasHeight / 2,
+    };
   });
   const [logs, setLogs] = useState<TerminalLog[]>([]);
   const [isTerminalCollapsed, setIsTerminalCollapsed] = useState(false);
@@ -40,19 +63,45 @@ function App() {
     };
     window.addEventListener('resize', handleResize);
     
-    // Set initial offset to center origin (properties panel is closed initially, terminal is expanded)
-    const canvasWidth = window.innerWidth - 340; 
-    const canvasHeight = window.innerHeight - 300; 
-    setViewport({
-      scale: 40,
-      offsetX: canvasWidth / 2,
-      offsetY: canvasHeight / 2,
-    });
+    // Set initial offset only if not loaded from localStorage
+    const saved = localStorage.getItem('geoview_viewport');
+    if (!saved) {
+      const canvasWidth = window.innerWidth - 340; 
+      const canvasHeight = window.innerHeight - 300; 
+      setViewport({
+        scale: 40,
+        offsetX: canvasWidth / 2,
+        offsetY: canvasHeight / 2,
+      });
+    }
 
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const [calcVariables, setCalcVariables] = useState<CalculatorVariable[]>([]);
+  const [calcVariables, setCalcVariables] = useState<CalculatorVariable[]>(() => {
+    try {
+      const saved = localStorage.getItem('geoview_calc_variables');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error('Failed to parse geoview_calc_variables', e);
+    }
+    return [];
+  });
+
+  // Local storage persistence effects
+  useEffect(() => {
+    localStorage.setItem('geoview_objects', JSON.stringify(objects));
+  }, [objects]);
+
+  useEffect(() => {
+    localStorage.setItem('geoview_calc_variables', JSON.stringify(calcVariables));
+  }, [calcVariables]);
+
+  useEffect(() => {
+    localStorage.setItem('geoview_viewport', JSON.stringify(viewport));
+  }, [viewport]);
 
   // Reactive re-evaluation of calculator variables whenever objects change
   useEffect(() => {
