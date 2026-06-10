@@ -1,4 +1,5 @@
 import type { GeometricObject, ObjectType } from './types';
+import type { CalculatorVariable } from './utils/evaluator';
 
 // Validates C++ variable name conventions
 const CPP_VAR_REGEX = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
@@ -128,7 +129,8 @@ export interface ParseResult {
 export function parseScript(
   scriptText: string,
   existingObjects: Record<string, GeometricObject>,
-  themeColors: string[]
+  themeColors: string[],
+  calcVariables: CalculatorVariable[] = []
 ): ParseResult {
   const errors: string[] = [];
   const parsedObjects: GeometricObject[] = [];
@@ -219,6 +221,11 @@ export function parseScript(
           throw new Error(`Invalid variable name "${name}". Must start with a letter or underscore and contain only alphanumeric characters and underscores.`);
         }
         
+        // Forbid reserved names
+        if (['pi', 'e'].includes(name.toLowerCase())) {
+          throw new Error(`Name "${name}" is a reserved mathematical constant.`);
+        }
+
         // Validate name uniqueness
         if (getActiveNamesSet().has(name)) {
           throw new Error(`Variable name "${name}" is already in use.`);
@@ -276,11 +283,41 @@ export function parseScript(
             throw new Error(`"point" requires exactly 2 arguments: point(x, y). Received ${argTokens.length}.`);
           }
           const [xs, ys] = argTokens;
-          if (!NUMBER_REGEX.test(xs) || !NUMBER_REGEX.test(ys)) {
-            throw new Error(`"point" coordinates must be numbers. Received: point(${xs}, ${ys})`);
+          const isXVar = CPP_VAR_REGEX.test(xs) && !NUMBER_REGEX.test(xs);
+          const isYVar = CPP_VAR_REGEX.test(ys) && !NUMBER_REGEX.test(ys);
+          
+          let x = 0;
+          let y = 0;
+          let xRef: string | undefined = undefined;
+          let yRef: string | undefined = undefined;
+
+          if (isXVar) {
+            const v = calcVariables.find(v => v.name === xs);
+            if (!v) {
+              throw new Error(`Variable "${xs}" is not defined.`);
+            }
+            x = typeof v.value === 'number' ? v.value : parseFloat(v.value as string) || 0;
+            xRef = xs;
+          } else {
+            if (!NUMBER_REGEX.test(xs)) {
+              throw new Error(`"point" x-coordinate must be a number or variable. Received: point(${xs}, ${ys})`);
+            }
+            x = parseFloat(xs);
           }
-          const x = parseFloat(xs);
-          const y = parseFloat(ys);
+
+          if (isYVar) {
+            const v = calcVariables.find(v => v.name === ys);
+            if (!v) {
+              throw new Error(`Variable "${ys}" is not defined.`);
+            }
+            y = typeof v.value === 'number' ? v.value : parseFloat(v.value as string) || 0;
+            yRef = ys;
+          } else {
+            if (!NUMBER_REGEX.test(ys)) {
+              throw new Error(`"point" y-coordinate must be a number or variable. Received: point(${xs}, ${ys})`);
+            }
+            y = parseFloat(ys);
+          }
           
           const finalName = name || generateDefaultName('point', getActiveNamesSet());
           createdObject = {
@@ -291,7 +328,9 @@ export function parseScript(
             y,
             color: colorParam || getNextColor(),
             fill: fillParam !== false,
-            visible: true
+            visible: true,
+            xRef,
+            yRef
           };
           break;
         }
@@ -365,7 +404,8 @@ export function parseScript(
           }
 
           let center: string | { x: number; y: number };
-          let radius: number;
+          let radius = 0;
+          let radiusRef: string | undefined = undefined;
 
           if (argTokens.length === 2) {
             const [centerArg, radiusArg] = argTokens;
@@ -385,18 +425,42 @@ export function parseScript(
             }
 
             // Resolve radius
-            if (!NUMBER_REGEX.test(radiusArg)) {
-              throw new Error(`Circle radius must be a number. Received "${radiusArg}".`);
+            const isRVar = CPP_VAR_REGEX.test(radiusArg) && !NUMBER_REGEX.test(radiusArg);
+            if (isRVar) {
+              const v = calcVariables.find(v => v.name === radiusArg);
+              if (!v) {
+                throw new Error(`Variable "${radiusArg}" is not defined.`);
+              }
+              radius = typeof v.value === 'number' ? v.value : parseFloat(v.value as string) || 0;
+              radiusRef = radiusArg;
+            } else {
+              if (!NUMBER_REGEX.test(radiusArg)) {
+                throw new Error(`Circle radius must be a number or variable. Received "${radiusArg}".`);
+              }
+              radius = parseFloat(radiusArg);
             }
-            radius = parseFloat(radiusArg);
           } else {
             // 3 arguments: x, y, r
             const [xs, ys, rs] = argTokens;
-            if (!NUMBER_REGEX.test(xs) || !NUMBER_REGEX.test(ys) || !NUMBER_REGEX.test(rs)) {
-              throw new Error(`Circle parameters must be numbers. Received circle(${xs}, ${ys}, ${rs}).`);
+            if (!NUMBER_REGEX.test(xs) || !NUMBER_REGEX.test(ys)) {
+              throw new Error(`Circle coordinates must be numbers. Received circle(${xs}, ${ys}, ${rs}).`);
             }
             center = { x: parseFloat(xs), y: parseFloat(ys) };
-            radius = parseFloat(rs);
+
+            const isRVar = CPP_VAR_REGEX.test(rs) && !NUMBER_REGEX.test(rs);
+            if (isRVar) {
+              const v = calcVariables.find(v => v.name === rs);
+              if (!v) {
+                throw new Error(`Variable "${rs}" is not defined.`);
+              }
+              radius = typeof v.value === 'number' ? v.value : parseFloat(v.value as string) || 0;
+              radiusRef = rs;
+            } else {
+              if (!NUMBER_REGEX.test(rs)) {
+                throw new Error(`Circle radius must be a number or variable. Received "${rs}".`);
+              }
+              radius = parseFloat(rs);
+            }
           }
 
           if (radius <= 0) {
@@ -412,7 +476,8 @@ export function parseScript(
             radius,
             color: colorParam || getNextColor(),
             fill: fillParam !== false,
-            visible: true
+            visible: true,
+            radiusRef
           };
           break;
         }

@@ -200,7 +200,41 @@ export function getExpressionDependencies(
     const deps = new Set<string>();
     const traverse = (node: ASTNode) => {
       if (node.type === 'VARIABLE') {
-        if (!(node.name in canvasObjects)) {
+        const nameLower = node.name.toLowerCase();
+        if (nameLower !== 'pi' && nameLower !== 'e') {
+          if (!(node.name in canvasObjects)) {
+            deps.add(node.name);
+          }
+        }
+      } else if (node.type === 'BINARY') {
+        traverse(node.left);
+        traverse(node.right);
+      } else if (node.type === 'UNARY') {
+        traverse(node.expr);
+      } else if (node.type === 'CALL') {
+        node.args.forEach(traverse);
+      }
+    };
+    traverse(ast);
+    return Array.from(deps);
+  } catch {
+    return [];
+  }
+}
+
+export function getExpressionCanvasDependencies(
+  exprStr: string,
+  canvasObjects: Record<string, GeometricObject>
+): string[] {
+  try {
+    const tokens = tokenize(exprStr);
+    const parser = new Parser(tokens);
+    const ast = parser.parse();
+    
+    const deps = new Set<string>();
+    const traverse = (node: ASTNode) => {
+      if (node.type === 'VARIABLE') {
+        if (node.name in canvasObjects) {
           deps.add(node.name);
         }
       } else if (node.type === 'BINARY') {
@@ -235,6 +269,13 @@ export function evaluateAST(
     case 'NUMBER':
       return node.value;
     case 'VARIABLE': {
+      const nameLower = node.name.toLowerCase();
+      if (nameLower === 'pi') {
+        return Math.PI;
+      }
+      if (nameLower === 'e') {
+        return Math.E;
+      }
       if (node.name in variableValues) {
         return variableValues[node.name];
       }
@@ -381,7 +422,7 @@ export function evaluateAST(
         if (angVal === null) throw new Error("Could not calculate angle value");
         return angVal;
       }
-      if (['sin', 'cos', 'tan', 'sind', 'cosd', 'tand', 'sqrt'].includes(node.name)) {
+      if (['sin', 'cos', 'tan', 'sind', 'cosd', 'tand', 'asin', 'acos', 'asind', 'acosd', 'sqrt'].includes(node.name)) {
         if (node.args.length !== 1) throw new Error(`${node.name} requires 1 argument`);
         const val = evaluateAST(node.args[0], canvasObjects, variableValues);
         switch (node.name) {
@@ -391,6 +432,10 @@ export function evaluateAST(
           case 'sind': return Math.sin(val * Math.PI / 180);
           case 'cosd': return Math.cos(val * Math.PI / 180);
           case 'tand': return Math.tan(val * Math.PI / 180);
+          case 'asin': return Math.asin(val);
+          case 'acos': return Math.acos(val);
+          case 'asind': return Math.asin(val) * 180 / Math.PI;
+          case 'acosd': return Math.acos(val) * 180 / Math.PI;
           case 'sqrt':
             if (val < 0) throw new Error("Cannot take square root of a negative number");
             return Math.sqrt(val);
@@ -498,4 +543,186 @@ export function evaluateAllVariables(
   });
 
   return variables.map(v => resultsMap.get(v.name)!);
+}
+
+function getObjectDependencies(obj: GeometricObject): string[] {
+  const deps: string[] = [];
+  if (obj.type === 'point') {
+    if (obj.xRef) deps.push(obj.xRef);
+    if (obj.yRef) deps.push(obj.yRef);
+  } else if (obj.type === 'line') {
+    if (typeof obj.p1 === 'string') deps.push(obj.p1);
+    if (typeof obj.p2 === 'string') deps.push(obj.p2);
+  } else if (obj.type === 'circle') {
+    if (typeof obj.center === 'string') deps.push(obj.center);
+    if (obj.radiusRef) deps.push(obj.radiusRef);
+  } else if (obj.type === 'polygon') {
+    obj.points.forEach(p => {
+      if (typeof p === 'string') deps.push(p);
+    });
+  } else if (obj.type === 'angle') {
+    deps.push(obj.pA, obj.pB, obj.pC);
+  } else if (obj.type === 'vector') {
+    if (typeof obj.p1 === 'string') deps.push(obj.p1);
+    if (typeof obj.p2 === 'string') deps.push(obj.p2);
+    if (obj.v1Ref) deps.push(obj.v1Ref);
+    if (obj.v2Ref) deps.push(obj.v2Ref);
+  }
+  return deps;
+}
+
+export interface UnifiedEvaluationResult {
+  objects: Record<string, GeometricObject>;
+  variables: CalculatorVariable[];
+}
+
+export function evaluateUnified(
+  variables: CalculatorVariable[],
+  objects: Record<string, GeometricObject>
+): UnifiedEvaluationResult {
+  const adj = new Map<string, string[]>();
+  const varMap = new Map<string, CalculatorVariable>();
+  variables.forEach(v => varMap.set(v.name, v));
+  
+  // Build adjacency list
+  for (const v of variables) {
+    const depsVar = getExpressionDependencies(v.expression, objects);
+    const depsObj = getExpressionCanvasDependencies(v.expression, objects);
+    adj.set(v.name, [...depsVar, ...depsObj]);
+  }
+  for (const name of Object.keys(objects)) {
+    adj.set(name, getObjectDependencies(objects[name]));
+  }
+  
+  const visited = new Map<string, number>(); // 0=unvisited, 1=visiting, 2=visited
+  const cycleNodes = new Set<string>();
+  const order: string[] = [];
+  
+  function dfs(u: string) {
+    visited.set(u, 1);
+    const neighbors = adj.get(u) || [];
+    for (const v of neighbors) {
+      const state = visited.get(v) || 0;
+      if (state === 1) {
+        cycleNodes.add(u);
+        cycleNodes.add(v);
+      } else if (state === 0) {
+        dfs(v);
+      }
+    }
+    visited.set(u, 2);
+    order.push(u);
+  }
+  
+  // Run DFS on all nodes
+  const allNodes = [...variables.map(v => v.name), ...Object.keys(objects)];
+  for (const node of allNodes) {
+    if ((visited.get(node) || 0) === 0) {
+      dfs(node);
+    }
+  }
+  
+  // Propagate cycleNodes downstream to anything that depends on them
+  for (const u of order) {
+    const neighbors = adj.get(u) || [];
+    for (const v of neighbors) {
+      if (cycleNodes.has(v)) {
+        cycleNodes.add(u);
+        break;
+      }
+    }
+  }
+  
+  const evaluatedVars: Record<string, number> = {};
+  const resultsMap = new Map<string, CalculatorVariable>();
+  const resolvedObjects = { ...objects };
+  
+  // Process nodes in topological order (leaves first, roots last)
+  for (const name of order) {
+    if (varMap.has(name)) {
+      const v = varMap.get(name)!;
+      if (cycleNodes.has(name)) {
+        resultsMap.set(name, {
+          ...v,
+          value: 'NaN',
+          error: 'Circular dependency detected'
+        });
+        continue;
+      }
+      
+      try {
+        const tokens = tokenize(v.expression);
+        const parser = new Parser(tokens);
+        const ast = parser.parse();
+        const val = evaluateAST(ast, resolvedObjects, evaluatedVars);
+        evaluatedVars[name] = val;
+        
+        resultsMap.set(name, {
+          ...v,
+          value: Math.round(val * 1000) / 1000,
+          error: undefined
+        });
+      } catch (e: any) {
+        resultsMap.set(name, {
+          ...v,
+          value: 'NaN',
+          error: e.message
+        });
+      }
+    } else if (objects[name]) {
+      const obj = objects[name];
+      if (cycleNodes.has(name)) {
+        continue;
+      }
+      
+      if (obj.type === 'point') {
+        let newX = obj.x;
+        let newY = obj.y;
+        let updated = false;
+        
+        if (obj.xRef && obj.xRef in evaluatedVars) {
+          newX = evaluatedVars[obj.xRef];
+          updated = true;
+        }
+        if (obj.yRef && obj.yRef in evaluatedVars) {
+          newY = evaluatedVars[obj.yRef];
+          updated = true;
+        }
+        
+        if (updated) {
+          resolvedObjects[name] = {
+            ...obj,
+            x: newX,
+            y: newY
+          };
+        }
+      } else if (obj.type === 'circle') {
+        if (obj.radiusRef && obj.radiusRef in evaluatedVars) {
+          const newRadius = evaluatedVars[obj.radiusRef];
+          if (newRadius > 0) {
+            resolvedObjects[name] = {
+              ...obj,
+              radius: newRadius
+            };
+          }
+        }
+      }
+    }
+  }
+  
+  const finalVars = variables.map(v => {
+    if (resultsMap.has(v.name)) {
+      return resultsMap.get(v.name)!;
+    }
+    return {
+      ...v,
+      value: 'NaN',
+      error: cycleNodes.has(v.name) ? 'Circular dependency detected' : 'Evaluation error'
+    };
+  });
+  
+  return {
+    objects: resolvedObjects,
+    variables: finalVars
+  };
 }

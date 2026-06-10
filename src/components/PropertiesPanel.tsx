@@ -21,6 +21,7 @@ interface PropertyNumericInputProps {
   placeholder?: string;
   className?: string;
   min?: number;
+  disabled?: boolean;
 }
 
 const PropertyNumericInput: React.FC<PropertyNumericInputProps> = ({
@@ -31,6 +32,7 @@ const PropertyNumericInput: React.FC<PropertyNumericInputProps> = ({
   placeholder,
   className,
   min,
+  disabled = false,
 }) => {
   const [localVal, setLocalVal] = useState(value.toString());
   const [isFocused, setIsFocused] = useState(false);
@@ -88,11 +90,13 @@ const PropertyNumericInput: React.FC<PropertyNumericInputProps> = ({
       onBlur={handleBlur}
       onFocus={handleFocus}
       placeholder={placeholder}
+      disabled={disabled}
       onKeyDown={(e) => {
         if (e.key === 'Enter') {
           (e.target as HTMLInputElement).blur();
         }
       }}
+      style={disabled ? { opacity: 0.6, cursor: 'not-allowed', backgroundColor: '#21252b' } : undefined}
     />
   );
 };
@@ -172,24 +176,40 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     return (
       <div className="props-group">
         <label className="prop-label">Coordinates</label>
-        <div className="coordinate-inputs">
-          <div className="input-field">
-            <span className="coord-prefix">X</span>
-            <PropertyNumericInput
-              value={pt.x}
-              onChange={(val) => updateProp({ x: val }, false)}
-              onCommit={(val) => updateProp({ x: val }, true)}
-              defaultValue={0}
-            />
+        <div className="coordinate-inputs" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div className="input-field" style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'stretch' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="coord-prefix">X</span>
+              <PropertyNumericInput
+                value={pt.x}
+                onChange={(val) => updateProp({ x: val }, false)}
+                onCommit={(val) => updateProp({ x: val }, true)}
+                defaultValue={0}
+                disabled={!!pt.xRef}
+              />
+            </div>
+            {pt.xRef && (
+              <span style={{ fontSize: '11px', color: ACCENT_PALETTE[0], opacity: 0.8, marginLeft: '24px' }}>
+                Driven by: <strong>{pt.xRef}</strong>
+              </span>
+            )}
           </div>
-          <div className="input-field">
-            <span className="coord-prefix">Y</span>
-            <PropertyNumericInput
-              value={pt.y}
-              onChange={(val) => updateProp({ y: val }, false)}
-              onCommit={(val) => updateProp({ y: val }, true)}
-              defaultValue={0}
-            />
+          <div className="input-field" style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'stretch' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="coord-prefix">Y</span>
+              <PropertyNumericInput
+                value={pt.y}
+                onChange={(val) => updateProp({ y: val }, false)}
+                onCommit={(val) => updateProp({ y: val }, true)}
+                defaultValue={0}
+                disabled={!!pt.yRef}
+              />
+            </div>
+            {pt.yRef && (
+              <span style={{ fontSize: '11px', color: ACCENT_PALETTE[0], opacity: 0.8, marginLeft: '24px' }}>
+                Driven by: <strong>{pt.yRef}</strong>
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -329,14 +349,22 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         </div>
 
         <label className="prop-label" style={{ marginTop: '12px' }}>Radius</label>
-        <PropertyNumericInput
-          className="radius-input"
-          value={cr.radius}
-          onChange={(val) => updateProp({ radius: val }, false)}
-          onCommit={(val) => updateProp({ radius: val }, true)}
-          defaultValue={0.1}
-          min={0.001}
-        />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <PropertyNumericInput
+            className="radius-input"
+            value={cr.radius}
+            onChange={(val) => updateProp({ radius: val }, false)}
+            onCommit={(val) => updateProp({ radius: val }, true)}
+            defaultValue={0.1}
+            min={0.001}
+            disabled={!!cr.radiusRef}
+          />
+          {cr.radiusRef && (
+            <span style={{ fontSize: '11px', color: ACCENT_PALETTE[0], opacity: 0.8 }}>
+              Driven by: <strong>{cr.radiusRef}</strong>
+            </span>
+          )}
+        </div>
       </div>
     );
   };

@@ -745,6 +745,10 @@ export const Viewport: React.FC<ViewportProps> = ({
         const uniqueTargets: typeof targets = [];
         targets.forEach(t => {
           if (t.type === 'point_object' && t.name) {
+            const pt = objects[t.name];
+            if (pt && pt.type === 'point' && (pt.xRef || pt.yRef)) {
+              return; // Skip dragging dependent points
+            }
             if (!seenPoints.has(t.name)) {
               seenPoints.add(t.name);
               uniqueTargets.push(t);
@@ -753,6 +757,14 @@ export const Viewport: React.FC<ViewportProps> = ({
             uniqueTargets.push(t);
           }
         });
+
+        if (uniqueTargets.length === 0) {
+          pendingSelectionIdRef.current = draggedObj.id;
+          hasMovedRef.current = false;
+          dragStartMouseRef.current = { x: e.clientX, y: e.clientY };
+          dragTargets.current = [];
+          return;
+        }
 
         dragTargets.current = uniqueTargets;
         dragStartWorld.current = worldClick;

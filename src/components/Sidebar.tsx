@@ -153,8 +153,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const colorArg = `, "${obj.color}"`;
     const fillArg = obj.fill === false ? ', false' : '';
     switch (obj.type) {
-      case 'point':
-        return `${obj.name} = point(${obj.x}, ${obj.y}${colorArg})`;
+      case 'point': {
+        const xStr = obj.xRef || obj.x.toString();
+        const yStr = obj.yRef || obj.y.toString();
+        return `${obj.name} = point(${xStr}, ${yStr}${colorArg})`;
+      }
       case 'line': {
         const p1Str = typeof obj.p1 === 'string' ? obj.p1 : `(${obj.p1.x},${obj.p1.y})`;
         const p2Str = typeof obj.p2 === 'string' ? obj.p2 : `(${obj.p2.x},${obj.p2.y})`;
@@ -162,7 +165,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       }
       case 'circle': {
         const centerStr = typeof obj.center === 'string' ? obj.center : `(${obj.center.x},${obj.center.y})`;
-        return `${obj.name} = circle(${centerStr}, ${obj.radius}${colorArg}${fillArg})`;
+        const rStr = obj.radiusRef || obj.radius.toString();
+        return `${obj.name} = circle(${centerStr}, ${rStr}${colorArg}${fillArg})`;
       }
       case 'polygon': {
         const ptsStr = obj.points.map(p => typeof p === 'string' ? p : `(${p.x},${p.y})`).join(', ');

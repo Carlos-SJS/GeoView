@@ -7,7 +7,7 @@ import type { GeometricObject, ViewportState, TerminalLog } from './types';
 import { parseScript } from './parser';
 import { getUnionBoundingBox, getObjectBoundingBox } from './utils/geometry';
 import { ACCENT_PALETTE, ONE_DARK_COLORS } from './utils/theme';
-import { type CalculatorVariable, evaluateAllVariables } from './utils/evaluator';
+import { type CalculatorVariable, evaluateUnified } from './utils/evaluator';
 import { COMMAND_DOCS } from './utils/commandDocs';
 import './App.css';
 
@@ -105,10 +105,44 @@ function App() {
     localStorage.setItem('geoview_viewport', JSON.stringify(viewport));
   }, [viewport]);
 
-  // Reactive re-evaluation of calculator variables whenever objects change
+  // Reactive re-evaluation of calculator variables and dependent objects whenever objects or calcVariables change
   useEffect(() => {
-    setCalcVariables(prev => evaluateAllVariables(prev, objects));
-  }, [objects]);
+    const { objects: resolvedObjs, variables: evaluatedVars } = evaluateUnified(calcVariables, objects);
+    
+    // Check if objects actually changed
+    let objectsChanged = false;
+    for (const name of Object.keys(resolvedObjs)) {
+      const orig = objects[name];
+      const res = resolvedObjs[name];
+      if (!orig || JSON.stringify(orig) !== JSON.stringify(res)) {
+        objectsChanged = true;
+        break;
+      }
+    }
+    if (Object.keys(resolvedObjs).length !== Object.keys(objects).length) {
+      objectsChanged = true;
+    }
+
+    // Check if variables changed
+    let varsChanged = false;
+    if (evaluatedVars.length !== calcVariables.length) {
+      varsChanged = true;
+    } else {
+      for (let i = 0; i < evaluatedVars.length; i++) {
+        if (evaluatedVars[i].value !== calcVariables[i].value || evaluatedVars[i].error !== calcVariables[i].error) {
+          varsChanged = true;
+          break;
+        }
+      }
+    }
+
+    if (objectsChanged) {
+      setObjects(resolvedObjs);
+    }
+    if (varsChanged) {
+      setCalcVariables(evaluatedVars);
+    }
+  }, [objects, calcVariables]);
 
   const handleAddCalcVariable = (name: string, expression: string): string | null => {
     const trimmedName = name.trim();
@@ -134,7 +168,7 @@ function App() {
       value: 'NaN',
     };
 
-    const newList = evaluateAllVariables([...calcVariables, newVar], objects);
+    const { variables: newList } = evaluateUnified([...calcVariables, newVar], objects);
     
     // Check if the newly added variable has an error
     const addedVar = newList.find(v => v.name === trimmedName);
@@ -189,7 +223,7 @@ function App() {
       };
     });
 
-    const evaluated = evaluateAllVariables(updatedList, objects);
+    const { variables: evaluated } = evaluateUnified(updatedList, objects);
 
     const editedVar = evaluated.find(v => v.name === trimmedNewName);
     if (editedVar && editedVar.error && editedVar.error.includes("Circular dependency")) {
@@ -202,11 +236,13 @@ function App() {
 
   const handleDeleteCalcVariable = (name: string) => {
     const updated = calcVariables.filter(v => v.name !== name);
-    setCalcVariables(evaluateAllVariables(updated, objects));
+    const { variables: evaluated } = evaluateUnified(updated, objects);
+    setCalcVariables(evaluated);
   };
 
   const handleReorderCalcVariables = (newVars: CalculatorVariable[]) => {
-    setCalcVariables(evaluateAllVariables(newVars, objects));
+    const { variables: evaluated } = evaluateUnified(newVars, objects);
+    setCalcVariables(evaluated);
   };
 
   const pushToHistory = (newObjects: Record<string, GeometricObject>) => {
@@ -389,6 +425,10 @@ function App() {
             errors.push(`Line ${lineNum}: Invalid variable name "${varName}".`);
             continue;
           }
+          if (['pi', 'e'].includes(varName.toLowerCase())) {
+            errors.push(`Line ${lineNum}: Name "${varName}" is a reserved mathematical constant.`);
+            continue;
+          }
           if (currentObjects[varName]) {
             errors.push(`Line ${lineNum}: Name "${varName}" is already in use by a canvas element.`);
             continue;
@@ -408,7 +448,7 @@ function App() {
             updatedList.push(newVar);
           }
 
-          const evaluated = evaluateAllVariables(updatedList, currentObjects);
+          const { variables: evaluated } = evaluateUnified(updatedList, currentObjects);
           const addedVar = evaluated.find(v => v.name === varName);
           if (addedVar && addedVar.error && addedVar.error.includes("Circular dependency")) {
             errors.push(`Line ${lineNum}: Circular dependency detected.`);
@@ -420,7 +460,7 @@ function App() {
 
       if (!isCalculatorAssign) {
         // Evaluate as geometry script line
-        const res = parseScript(line, currentObjects, ACCENT_PALETTE);
+        const res = parseScript(line, currentObjects, ACCENT_PALETTE, currentCalcVariables);
         if (res.errors.length > 0) {
           res.errors.forEach(err => {
             errors.push(`Line ${lineNum}: ${err.replace(/^Line \d+:\s*/, '')}`);

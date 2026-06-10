@@ -9,6 +9,8 @@ export interface PointObject {
   color: string;
   visible: boolean;
   fill?: boolean;
+  xRef?: string;
+  yRef?: string;
 }
 
 export interface LineObject {
@@ -31,6 +33,7 @@ export interface CircleObject {
   color: string;
   visible: boolean;
   fill?: boolean;
+  radiusRef?: string;
 }
 
 export interface PolygonObject {
