@@ -664,6 +664,8 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
               fill="none"
               stroke="currentColor"
               strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
               style={{
                 pointerEvents: 'none',
                 color: '#fff',
@@ -712,7 +714,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
 
       {/* Focus zoom button */}
       <button className="focus-obj-btn" onClick={() => onFocusObject(obj.id)}>
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginRight: '6px' }}>
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}>
           <circle cx="12" cy="12" r="10" />
           <circle cx="12" cy="12" r="3" />
         </svg>

@@ -146,21 +146,35 @@ export const CalculatorPanel: React.FC<CalculatorPanelProps> = ({
                 </div>
 
                 {isEditing ? (
-                  <div className="calc-var-edit-container" style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}>
+                  <div className="calc-var-edit-container" style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
                     <input
                       type="text"
                       className="calc-name-input"
                       style={{ width: '45px', padding: '4px', margin: 0 }}
                       value={editNameInput}
                       onChange={(e) => setEditNameInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleSaveEdit(v.name);
+                        } else if (e.key === 'Escape') {
+                          handleCancelEdit();
+                        }
+                      }}
                     />
                     <span className="calc-var-separator">=</span>
                     <input
                       type="text"
                       className="calc-expr-input"
-                      style={{ flex: 1, padding: '4px', margin: 0 }}
+                      style={{ flex: 1, minWidth: 0, padding: '4px', margin: 0 }}
                       value={editExprInput}
                       onChange={(e) => setEditExprInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleSaveEdit(v.name);
+                        } else if (e.key === 'Escape') {
+                          handleCancelEdit();
+                        }
+                      }}
                     />
                     <button
                       className="calc-save-btn"

@@ -251,7 +251,7 @@ export function parseScript(
       let funcName = '';
       let argTokens: string[] = [];
       
-      const coordShortcutMatch = expr.match(/^\(\s*(-?\d*\.?\d+)\s*,\s*(-?\d*\.?\d+)(?:\s*,\s*([^)]+))?\s*\)$/);
+      const coordShortcutMatch = expr.match(/^\(\s*(-?\d*\.?\d+|[a-zA-Z_][a-zA-Z0-9_]*)\s*,\s*(-?\d*\.?\d+|[a-zA-Z_][a-zA-Z0-9_]*)(?:\s*,\s*([^)]+))?\s*\)$/);
       if (coordShortcutMatch) {
         funcName = 'point';
         argTokens = [coordShortcutMatch[1], coordShortcutMatch[2]];
