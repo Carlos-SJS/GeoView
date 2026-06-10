@@ -199,107 +199,171 @@ function App() {
 
   // Execute terminal script
   const handleExecuteCommand = (commandText: string): boolean => {
-    // 1. Check for delete calculator variable
-    const deleteMatch = commandText.match(/^delete\s+([a-zA-Z0-9_]+)$/) || commandText.match(/^delete\s*\(\s*([a-zA-Z0-9_]+)\s*\)$/);
-    if (deleteMatch) {
-      const nameToDelete = deleteMatch[1].trim();
-      if (calcVariables.some(v => v.name === nameToDelete)) {
-        handleDeleteCalcVariable(nameToDelete);
-        setLogs(prev => [
-          ...prev,
-          { command: commandText, success: true, timestamp: new Date() }
-        ]);
-        return true;
-      }
-    }
+    const lines = commandText
+      .split(/[\n;]/)
+      .map(line => line.trim())
+      .filter(line => line.length > 0 && !line.startsWith('//') && !line.startsWith('#'));
 
-    // 2. Check for calculator variable assignment
-    const calcMatch = commandText.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(.+)$/);
-    if (calcMatch) {
-      const varName = calcMatch[1].trim();
-      const expr = calcMatch[2].trim();
-      
-      const isVectorArithmetic = /^([a-zA-Z_][a-zA-Z0-9_]*)\s*([\+-])\s*([a-zA-Z_][a-zA-Z0-9_]*)(?:\s*,\s*(.+))?$/.test(expr);
-      const isGeomFunc = /^(point|line|circle|polygon|angle|vec|vector|add|sub)\s*\(/.test(expr) || /^\(/.test(expr) || isVectorArithmetic;
-      if (!isGeomFunc) {
-        const error = handleAddCalcVariable(varName, expr);
-        if (error) {
-          setLogs(prev => [
-            ...prev,
-            { command: commandText, success: false, error, timestamp: new Date() }
-          ]);
-          return false;
+    if (lines.length === 0) return true;
+
+    // Transactional copies
+    let currentObjects = { ...objects };
+    let currentCalcVariables = [...calcVariables];
+    const errors: string[] = [];
+    const newlyCreatedObjects: GeometricObject[] = [];
+    let clearState = false;
+    let undoState = false;
+    let redoState = false;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const lineNum = i + 1;
+
+      // Check for undo/redo
+      if (line.toLowerCase() === 'undo' || line.toLowerCase() === 'undo()') {
+        undoState = true;
+        continue;
+      }
+      if (line.toLowerCase() === 'redo' || line.toLowerCase() === 'redo()') {
+        redoState = true;
+        continue;
+      }
+
+      // Check for delete calculator variable / geometry object
+      const deleteMatch = line.match(/^delete\s+([a-zA-Z0-9_]+)$/) || line.match(/^delete\s*\(\s*([a-zA-Z0-9_]+)\s*\)$/);
+      if (deleteMatch) {
+        const nameToDelete = deleteMatch[1].trim();
+        let deleted = false;
+        
+        if (currentCalcVariables.some(v => v.name === nameToDelete)) {
+          currentCalcVariables = currentCalcVariables.filter(v => v.name !== nameToDelete);
+          deleted = true;
+        }
+        
+        if (currentObjects[nameToDelete]) {
+          delete currentObjects[nameToDelete];
+          deleted = true;
+        }
+
+        if (!deleted) {
+          errors.push(`Line ${lineNum}: Cannot delete "${nameToDelete}". Object is not defined.`);
+        }
+        continue;
+      }
+
+      // Check for calculator variable assignment
+      const calcMatch = line.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(.+)$/);
+      let isCalculatorAssign = false;
+      if (calcMatch) {
+        const varName = calcMatch[1].trim();
+        const expr = calcMatch[2].trim();
+        
+        const isVectorArithmetic = (() => {
+          const match = expr.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*([\+-])\s*([a-zA-Z_][a-zA-Z0-9_]*)(?:\s*,\s*(.+))?$/);
+          if (!match) return false;
+          const leftName = match[1];
+          const rightName = match[3];
+          const leftObj = currentObjects[leftName];
+          const rightObj = currentObjects[rightName];
+          return !!(leftObj && leftObj.type === 'vector' && rightObj && rightObj.type === 'vector');
+        })();
+        const isGeomFunc = /^(point|line|circle|polygon|angle|vec|vector|add|sub)\s*\(/.test(expr) || /^\(/.test(expr) || isVectorArithmetic;
+        
+        if (!isGeomFunc) {
+          isCalculatorAssign = true;
+          if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(varName)) {
+            errors.push(`Line ${lineNum}: Invalid variable name "${varName}".`);
+            continue;
+          }
+          if (currentObjects[varName]) {
+            errors.push(`Line ${lineNum}: Name "${varName}" is already in use by a canvas element.`);
+            continue;
+          }
+
+          const newVar: CalculatorVariable = {
+            name: varName,
+            expression: expr,
+            value: 'NaN',
+          };
+
+          const idx = currentCalcVariables.findIndex(v => v.name === varName);
+          const updatedList = [...currentCalcVariables];
+          if (idx !== -1) {
+            updatedList[idx] = newVar;
+          } else {
+            updatedList.push(newVar);
+          }
+
+          const evaluated = evaluateAllVariables(updatedList, currentObjects);
+          const addedVar = evaluated.find(v => v.name === varName);
+          if (addedVar && addedVar.error && addedVar.error.includes("Circular dependency")) {
+            errors.push(`Line ${lineNum}: Circular dependency detected.`);
+          } else {
+            currentCalcVariables = evaluated;
+          }
+        }
+      }
+
+      if (!isCalculatorAssign) {
+        // Evaluate as geometry script line
+        const res = parseScript(line, currentObjects, ACCENT_PALETTE);
+        if (res.errors.length > 0) {
+          res.errors.forEach(err => {
+            errors.push(`Line ${lineNum}: ${err.replace(/^Line \d+:\s*/, '')}`);
+          });
         } else {
-          setLogs(prev => [
-            ...prev,
-            { command: commandText, success: true, timestamp: new Date() }
-          ]);
-          return true;
+          if (res.clearState) {
+            currentObjects = {};
+            currentCalcVariables = [];
+            clearState = true;
+          }
+          if (res.deletedNames && res.deletedNames.length > 0) {
+            res.deletedNames.forEach(name => {
+              delete currentObjects[name];
+            });
+          }
+          res.objects.forEach(obj => {
+            currentObjects[obj.name] = obj;
+            newlyCreatedObjects.push(obj);
+          });
         }
       }
     }
 
-    const res = parseScript(commandText, objects, ACCENT_PALETTE);
-    
-    if (res.undoState) {
-      handleUndo();
-      setLogs(prev => [
-        ...prev,
-        { command: commandText, success: true, timestamp: new Date() }
-      ]);
-      return true;
-    }
-
-    if (res.redoState) {
-      handleRedo();
-      setLogs(prev => [
-        ...prev,
-        { command: commandText, success: true, timestamp: new Date() }
-      ]);
-      return true;
-    }
-
-    if (res.errors.length > 0) {
-      // Create failure log
-      const errStr = res.errors.join(' | ');
+    if (errors.length > 0) {
+      const errStr = errors.join(' | ');
       setLogs(prev => [
         ...prev,
         { command: commandText, success: false, error: errStr, timestamp: new Date() }
       ]);
       return false;
-    } else {
-      if (res.clearState) {
-        setCalcVariables([]);
-      }
-      // Apply clearState and deletedNames if any
-      let newObjs = res.clearState ? {} : { ...objects };
-      
-      if (res.deletedNames && res.deletedNames.length > 0) {
-        res.deletedNames.forEach(name => {
-          delete newObjs[name];
-        });
-      }
-
-      // Append successful objects
-      res.objects.forEach(obj => {
-        newObjs[obj.name] = obj;
-      });
-      
-      pushToHistory(newObjs);
-      
-      // Select last created object
-      if (res.objects.length > 0) {
-        setSelectedId(res.objects[res.objects.length - 1].id);
-      } else if (res.clearState) {
-        setSelectedId(null);
-      }
-      
-      setLogs(prev => [
-        ...prev,
-        { command: commandText, success: true, timestamp: new Date() }
-      ]);
-      return true;
     }
+
+    // Apply states
+    if (undoState) {
+      handleUndo();
+    }
+    if (redoState) {
+      handleRedo();
+    }
+    if (clearState) {
+      setCalcVariables([]);
+      setSelectedId(null);
+    }
+
+    if (!undoState && !redoState) {
+      setCalcVariables(currentCalcVariables);
+      pushToHistory(currentObjects);
+      if (newlyCreatedObjects.length > 0) {
+        setSelectedId(newlyCreatedObjects[newlyCreatedObjects.length - 1].id);
+      }
+    }
+
+    setLogs(prev => [
+      ...prev,
+      { command: commandText, success: true, timestamp: new Date() }
+    ]);
+    return true;
   };
 
   const handleAddLog = (commandText: string, success: boolean, error?: string) => {

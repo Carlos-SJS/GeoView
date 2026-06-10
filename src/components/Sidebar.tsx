@@ -182,8 +182,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // Export state as a sequence of script commands
   const handleExportScript = () => {
-    if (objectsList.length === 0) {
-      alert("No elements on the canvas to export!");
+    if (objectsList.length === 0 && calcVariables.length === 0) {
+      alert("No elements or calculator variables to export!");
       return;
     }
 
@@ -193,7 +193,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
       return rank[a.type] - rank[b.type];
     });
 
-    const scriptText = sorted.map(getObjectCommand).join('\n');
+    const geomScript = sorted.map(getObjectCommand).join('\n');
+    const calcScript = calcVariables.map(v => `${v.name} = ${v.expression}`).join('\n');
+    const scriptText = [geomScript, calcScript].filter(Boolean).join('\n');
     setExportedScriptText(scriptText);
 
     // Copy to clipboard
