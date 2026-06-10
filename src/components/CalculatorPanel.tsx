@@ -6,6 +6,7 @@ interface CalculatorPanelProps {
   onAddCalcVariable: (name: string, expression: string) => string | null;
   onDeleteCalcVariable: (name: string) => void;
   onReorderCalcVariables: (newVars: CalculatorVariable[]) => void;
+  onUpdateCalcVariable: (oldName: string, newName: string, newExpression: string) => string | null;
 }
 
 export const CalculatorPanel: React.FC<CalculatorPanelProps> = ({
@@ -13,10 +14,47 @@ export const CalculatorPanel: React.FC<CalculatorPanelProps> = ({
   onAddCalcVariable,
   onDeleteCalcVariable,
   onReorderCalcVariables,
+  onUpdateCalcVariable,
 }) => {
   const [nameInput, setNameInput] = useState('');
   const [exprInput, setExprInput] = useState('');
   const [errorText, setErrorText] = useState<string | null>(null);
+
+  // Edit states
+  const [editingVarName, setEditingVarName] = useState<string | null>(null);
+  const [editNameInput, setEditNameInput] = useState('');
+  const [editExprInput, setEditExprInput] = useState('');
+
+  const handleStartEdit = (v: CalculatorVariable) => {
+    setEditingVarName(v.name);
+    setEditNameInput(v.name);
+    setEditExprInput(v.expression);
+    setErrorText(null);
+  };
+
+  const handleSaveEdit = (oldName: string) => {
+    setErrorText(null);
+    const newName = editNameInput.trim();
+    const newExpr = editExprInput.trim();
+
+    if (!newName || !newExpr) {
+      setErrorText("Both name and formula are required.");
+      return;
+    }
+
+    const err = onUpdateCalcVariable(oldName, newName, newExpr);
+    if (err) {
+      setErrorText(err);
+    } else {
+      setEditingVarName(null);
+      setErrorText(null);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingVarName(null);
+    setErrorText(null);
+  };
 
   // Drag and drop states
   const dragIndex = useRef<number | null>(null);
@@ -78,21 +116,25 @@ export const CalculatorPanel: React.FC<CalculatorPanelProps> = ({
           {calcVariables.map((v, idx) => {
             const isDragging = draggingIdx === idx;
             const hasError = !!v.error;
+            const isEditing = editingVarName === v.name;
             return (
               <div
                 key={v.name}
-                className={`calc-var-item ${isDragging ? 'dragging' : ''} ${hasError ? 'has-error' : ''}`}
-                draggable
+                className={`calc-var-item ${isDragging ? 'dragging' : ''} ${hasError ? 'has-error' : ''} ${isEditing ? 'is-editing' : ''}`}
+                draggable={!isEditing}
                 onDragStart={(e) => handleDragStart(e, idx)}
                 onDragEnter={() => handleDragEnter(idx)}
                 onDragEnd={handleDragEnd}
                 onDragOver={(e) => e.preventDefault()}
+                onDoubleClick={() => {
+                  if (!isEditing) handleStartEdit(v);
+                }}
                 style={{
                   borderLeft: `3px solid ${hasError ? 'var(--accent-red)' : 'var(--accent-green)'}`,
                 }}
               >
                 {/* Drag handle dots */}
-                <div className="calc-drag-handle" title="Drag to reorder">
+                <div className="calc-drag-handle" title={isEditing ? "Editing mode" : "Drag to reorder"}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                     <circle cx="8" cy="6" r="2" />
                     <circle cx="16" cy="6" r="2" />
@@ -103,32 +145,91 @@ export const CalculatorPanel: React.FC<CalculatorPanelProps> = ({
                   </svg>
                 </div>
 
-                <div className="calc-var-info">
-                  <div className="calc-var-header">
-                    <span className="calc-var-name">{v.name}</span>
+                {isEditing ? (
+                  <div className="calc-var-edit-container" style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}>
+                    <input
+                      type="text"
+                      className="calc-name-input"
+                      style={{ width: '45px', padding: '4px', margin: 0 }}
+                      value={editNameInput}
+                      onChange={(e) => setEditNameInput(e.target.value)}
+                    />
                     <span className="calc-var-separator">=</span>
-                    <span className="calc-var-expr" title={v.expression}>{v.expression}</span>
+                    <input
+                      type="text"
+                      className="calc-expr-input"
+                      style={{ flex: 1, padding: '4px', margin: 0 }}
+                      value={editExprInput}
+                      onChange={(e) => setEditExprInput(e.target.value)}
+                    />
+                    <button
+                      className="calc-save-btn"
+                      onClick={() => handleSaveEdit(v.name)}
+                      title="Save changes"
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--accent-green)',
+                        cursor: 'pointer',
+                        padding: '4px',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                    >
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="3">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </button>
+                    <button
+                      className="calc-cancel-btn"
+                      onClick={handleCancelEdit}
+                      title="Cancel editing"
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--text-muted)',
+                        cursor: 'pointer',
+                        padding: '4px',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                    >
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="3">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
                   </div>
-                  {v.error && (
-                    <div className="calc-var-error-msg">{v.error}</div>
-                  )}
-                </div>
+                ) : (
+                  <>
+                    <div className="calc-var-info">
+                      <div className="calc-var-header">
+                        <span className="calc-var-name">{v.name}</span>
+                        <span className="calc-var-separator">=</span>
+                        <span className="calc-var-expr" title={v.expression}>{v.expression}</span>
+                      </div>
+                      {v.error && (
+                        <div className="calc-var-error-msg">{v.error}</div>
+                      )}
+                    </div>
 
-                <div className="calc-var-result-container">
-                  <div className={`calc-var-value ${hasError ? 'error' : ''}`}>
-                    {v.value}
-                  </div>
-                  <button
-                    className="calc-delete-btn"
-                    onClick={() => onDeleteCalcVariable(v.name)}
-                    title={`Delete variable ${v.name}`}
-                  >
-                    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </button>
-                </div>
+                    <div className="calc-var-result-container">
+                      <div className={`calc-var-value ${hasError ? 'error' : ''}`}>
+                        {v.value}
+                      </div>
+                      <button
+                        className="calc-delete-btn"
+                        onClick={() => onDeleteCalcVariable(v.name)}
+                        title={`Delete variable ${v.name}`}
+                      >
+                        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <line x1="18" y1="6" x2="6" y2="18" />
+                          <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             );
           })}

@@ -116,6 +116,10 @@ function App() {
     if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(trimmedName)) {
       return "Invalid variable name. Must start with a letter/underscore.";
     }
+    const reserved = ['pi', 'e'];
+    if (reserved.includes(trimmedName.toLowerCase())) {
+      return `Name "${trimmedName}" is a reserved mathematical constant.`;
+    }
     const canvasNames = new Set(Object.values(objects).map(o => o.name));
     if (canvasNames.has(trimmedName)) {
       return `Name "${trimmedName}" is already in use by a canvas element.`;
@@ -139,6 +143,60 @@ function App() {
     }
 
     setCalcVariables(newList);
+    return null;
+  };
+
+  const handleUpdateCalcVariable = (oldName: string, newName: string, newExpression: string): string | null => {
+    const trimmedNewName = newName.trim();
+    const trimmedExpr = newExpression.trim();
+
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(trimmedNewName)) {
+      return "Invalid variable name. Must start with a letter/underscore.";
+    }
+
+    const reserved = ['pi', 'e'];
+    if (reserved.includes(trimmedNewName.toLowerCase())) {
+      return `Name "${trimmedNewName}" is a reserved mathematical constant.`;
+    }
+
+    const canvasNames = new Set(Object.values(objects).map(o => o.name));
+    if (canvasNames.has(trimmedNewName)) {
+      return `Name "${trimmedNewName}" is already in use by a canvas element.`;
+    }
+
+    if (trimmedNewName !== oldName && calcVariables.some(v => v.name === trimmedNewName)) {
+      return `Calculator variable "${trimmedNewName}" is already defined.`;
+    }
+
+    // Build the updated list with cascade renaming
+    const updatedList = calcVariables.map(v => {
+      if (v.name === oldName) {
+        return {
+          name: trimmedNewName,
+          expression: trimmedExpr,
+          value: 'NaN',
+        };
+      }
+
+      // Cascade renaming in expressions
+      const escapedOldName = oldName.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+      const regex = new RegExp(`\\b${escapedOldName}\\b`, 'g');
+      const updatedExpr = v.expression.replace(regex, trimmedNewName);
+
+      return {
+        ...v,
+        expression: updatedExpr,
+      };
+    });
+
+    const evaluated = evaluateAllVariables(updatedList, objects);
+
+    const editedVar = evaluated.find(v => v.name === trimmedNewName);
+    if (editedVar && editedVar.error && editedVar.error.includes("Circular dependency")) {
+      return "Circular dependency detected.";
+    }
+
+    setCalcVariables(evaluated);
     return null;
   };
 
@@ -642,6 +700,7 @@ function App() {
           onAddCalcVariable={handleAddCalcVariable}
           onDeleteCalcVariable={handleDeleteCalcVariable}
           onReorderCalcVariables={handleReorderCalcVariables}
+          onUpdateCalcVariable={handleUpdateCalcVariable}
         />
 
         {/* Central Viewport & Bottom Terminal */}

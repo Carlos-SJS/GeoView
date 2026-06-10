@@ -20,6 +20,7 @@ interface SidebarProps {
   onAddCalcVariable: (name: string, expression: string) => string | null;
   onDeleteCalcVariable: (name: string) => void;
   onReorderCalcVariables: (newVars: CalculatorVariable[]) => void;
+  onUpdateCalcVariable: (oldName: string, newName: string, newExpression: string) => string | null;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -36,6 +37,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onAddCalcVariable,
   onDeleteCalcVariable,
   onReorderCalcVariables,
+  onUpdateCalcVariable,
 }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -570,6 +572,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onAddCalcVariable={onAddCalcVariable}
               onDeleteCalcVariable={onDeleteCalcVariable}
               onReorderCalcVariables={onReorderCalcVariables}
+              onUpdateCalcVariable={onUpdateCalcVariable}
             />
           </div>
         </div>
