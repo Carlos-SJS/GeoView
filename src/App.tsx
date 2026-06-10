@@ -8,6 +8,7 @@ import { parseScript } from './parser';
 import { getUnionBoundingBox, getObjectBoundingBox } from './utils/geometry';
 import { ACCENT_PALETTE, ONE_DARK_COLORS } from './utils/theme';
 import { type CalculatorVariable, evaluateAllVariables } from './utils/evaluator';
+import { COMMAND_DOCS } from './utils/commandDocs';
 import './App.css';
 
 // Initial state is empty by default
@@ -50,6 +51,7 @@ function App() {
   });
   const [logs, setLogs] = useState<TerminalLog[]>([]);
   const [isTerminalCollapsed, setIsTerminalCollapsed] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
 
   // Track window size to compute canvas dimensions for zooming
   const [windowSize, setWindowSize] = useState({
@@ -263,6 +265,7 @@ function App() {
     let clearState = false;
     let undoState = false;
     let redoState = false;
+    let helpState = false;
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
@@ -275,6 +278,10 @@ function App() {
       }
       if (line.toLowerCase() === 'redo' || line.toLowerCase() === 'redo()') {
         redoState = true;
+        continue;
+      }
+      if (line.toLowerCase() === 'help' || line.toLowerCase() === 'help()') {
+        helpState = true;
         continue;
       }
 
@@ -394,6 +401,9 @@ function App() {
     }
     if (redoState) {
       handleRedo();
+    }
+    if (helpState) {
+      setIsHelpOpen(true);
     }
     if (clearState) {
       setCalcVariables([]);
@@ -656,6 +666,7 @@ function App() {
             onClearLogs={handleClearLogs}
             isCollapsed={isTerminalCollapsed}
             setIsCollapsed={setIsTerminalCollapsed}
+            onShowHelp={() => setIsHelpOpen(true)}
           />
         </div>
 
@@ -670,6 +681,47 @@ function App() {
           />
         )}
       </div>
+
+      {/* Help Modal */}
+      {isHelpOpen && (
+        <div className="help-modal-overlay" onClick={() => setIsHelpOpen(false)}>
+          <div className="help-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="help-modal-header">
+              <h2>Command & Function Reference</h2>
+              <button className="help-close-btn" onClick={() => setIsHelpOpen(false)}>
+                &times;
+              </button>
+            </div>
+            <div className="help-modal-body">
+              {COMMAND_DOCS.map((cat, catIdx) => (
+                <div key={catIdx} className="help-doc-category">
+                  <h3>{cat.title}</h3>
+                  <table className="help-doc-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: '15%' }}>Name</th>
+                        <th style={{ width: '30%' }}>Syntax</th>
+                        <th style={{ width: '35%' }}>Description</th>
+                        <th style={{ width: '20%' }}>Example</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cat.items.map((item, itemIdx) => (
+                        <tr key={itemIdx}>
+                          <td className="doc-name">{item.name}</td>
+                          <td><code>{item.syntax}</code></td>
+                          <td>{item.description}</td>
+                          <td><code className="doc-example">{item.example}</code></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

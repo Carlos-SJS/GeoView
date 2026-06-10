@@ -9,6 +9,7 @@ interface TerminalProps {
   onClearLogs: () => void;
   isCollapsed: boolean;
   setIsCollapsed: (collapsed: boolean) => void;
+  onShowHelp: () => void;
 }
 
 export const Terminal: React.FC<TerminalProps> = ({
@@ -17,6 +18,7 @@ export const Terminal: React.FC<TerminalProps> = ({
   onClearLogs,
   isCollapsed,
   setIsCollapsed,
+  onShowHelp,
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
@@ -144,7 +146,36 @@ export const Terminal: React.FC<TerminalProps> = ({
             {isCollapsed ? '▲ Show Logs' : '▼ Hide Logs'}
           </span>
         </div>
-        <div className="terminal-header-actions">
+        <div className="terminal-header-actions" style={{ display: 'flex', alignItems: 'center' }}>
+          <button
+            className="term-help-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              onShowHelp();
+            }}
+            title="Help & Documentation (Type 'help')"
+            style={{
+              marginRight: '12px',
+              background: 'none',
+              border: 'none',
+              color: '#abb2bf',
+              display: 'flex',
+              alignItems: 'center',
+              cursor: 'pointer',
+              padding: '4px',
+              borderRadius: '4px',
+              transition: 'background-color 0.2s',
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginRight: '4px' }}>
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="16" x2="12" y2="12" />
+              <line x1="12" y1="8" x2="12.01" y2="8" />
+            </svg>
+            Help
+          </button>
           <button
             className="term-clear-btn"
             onClick={(e) => {

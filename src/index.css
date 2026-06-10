@@ -1400,3 +1400,124 @@ body, html {
   text-align: left;
 }
 
+/* Help Modal Styles */
+.help-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  backdrop-filter: blur(4px);
+}
+
+.help-modal-content {
+  background-color: #21252b;
+  border: 1px solid #3e4451;
+  border-radius: 8px;
+  width: 85%;
+  max-width: 950px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  animation: modalFadeIn 0.2s ease-out;
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.help-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  border-bottom: 1px solid #3e4451;
+}
+
+.help-modal-header h2 {
+  margin: 0;
+  color: #abb2bf;
+  font-size: 1.25rem;
+}
+
+.help-close-btn {
+  background: none;
+  border: none;
+  color: #abb2bf;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.help-close-btn:hover {
+  color: #e06c75;
+}
+
+.help-modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.help-doc-category {
+  margin-bottom: 24px;
+}
+
+.help-doc-category h3 {
+  margin-top: 0;
+  margin-bottom: 12px;
+  color: #61afef;
+  font-size: 1.1rem;
+  border-left: 3px solid #61afef;
+  padding-left: 8px;
+}
+
+.help-doc-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13px;
+  color: #abb2bf;
+}
+
+.help-doc-table th,
+.help-doc-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #282c34;
+  vertical-align: middle;
+}
+
+.help-doc-table th {
+  background-color: #282c34;
+  color: #e06c75;
+  font-weight: 600;
+}
+
+.help-doc-table tr:hover {
+  background-color: #2c313c;
+}
+
+.help-doc-table code {
+  font-family: 'Fira Code', 'Courier New', Courier, monospace;
+  background-color: #1e2227;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #98c379;
+}
+
+.help-doc-table code.doc-example {
+  color: #d19a66;
+}
+
+.doc-name {
+  font-weight: bold;
+}
+
