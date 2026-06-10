@@ -63,6 +63,11 @@ export const Viewport: React.FC<ViewportProps> = ({
   const isGPressed = useRef(false);
   const isGTemporaryDrag = useRef(false);
 
+  // Selection vs Dragging refs
+  const pendingSelectionIdRef = useRef<string | null>(null);
+  const hasMovedRef = useRef<boolean>(false);
+  const dragStartMouseRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
   const { scale, offsetX, offsetY } = viewportState;
 
   // Listen to keyboard shortcut (Escape to select, G for temporary drag)
@@ -592,7 +597,9 @@ export const Viewport: React.FC<ViewportProps> = ({
           }
         }
 
-        onSelect(draggedObj.id);
+        pendingSelectionIdRef.current = draggedObj.id;
+        hasMovedRef.current = false;
+        dragStartMouseRef.current = { x: e.clientX, y: e.clientY };
 
         const targets: typeof dragTargets.current = [];
 
@@ -777,7 +784,9 @@ export const Viewport: React.FC<ViewportProps> = ({
       }
     });
 
-    onSelect(closestId);
+    pendingSelectionIdRef.current = closestId;
+    hasMovedRef.current = false;
+    dragStartMouseRef.current = { x: e.clientX, y: e.clientY };
 
     setIsPanning(true);
     dragStart.current = { x: e.clientX, y: e.clientY };
@@ -788,6 +797,14 @@ export const Viewport: React.FC<ViewportProps> = ({
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+
+    if (isDraggingObj || isPanning) {
+      const distance = Math.hypot(e.clientX - dragStartMouseRef.current.x, e.clientY - dragStartMouseRef.current.y);
+      if (distance > 3) {
+        hasMovedRef.current = true;
+        pendingSelectionIdRef.current = null;
+      }
+    }
 
     if (isDraggingObj) {
       const rect = canvas.getBoundingClientRect();
@@ -879,11 +896,20 @@ export const Viewport: React.FC<ViewportProps> = ({
 
   // Handle Mouseup
   const handleMouseUp = () => {
-    setIsPanning(false);
     if (isDraggingObj) {
       setIsDraggingObj(false);
       onCommitDrag(draggedObjectsRef.current);
     }
+    if (isPanning) {
+      setIsPanning(false);
+    }
+    
+    if (!hasMovedRef.current && pendingSelectionIdRef.current !== undefined) {
+      onSelect(pendingSelectionIdRef.current);
+    }
+    
+    pendingSelectionIdRef.current = null;
+    hasMovedRef.current = false;
   };
 
   // Handle Wheel (Zoom centered on mouse)
