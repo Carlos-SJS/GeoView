@@ -924,34 +924,43 @@ export const Viewport: React.FC<ViewportProps> = ({
     hasMovedRef.current = false;
   };
 
-  // Handle Wheel (Zoom centered on mouse)
-  const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
+  // Handle Wheel manually to support non-passive event listeners (required to call preventDefault)
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
 
-    const worldMouse = screenToWorld(mouseX, mouseY);
-    
-    const zoomFactor = 1.15;
-    const newScale = e.deltaY < 0 ? scale * zoomFactor : scale / zoomFactor;
-    
-    // Boundary check for scale to prevent crash
-    if (newScale < 0.1 || newScale > 20000) return;
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
 
-    // Adjust offsets so the mouse coordinate doesn't jump
-    const newOffsetX = mouseX - worldMouse.x * newScale;
-    const newOffsetY = mouseY + worldMouse.y * newScale;
+      const worldMouseX = (mouseX - offsetX) / scale;
+      const worldMouseY = -(mouseY - offsetY) / scale;
+      
+      const zoomFactor = 1.15;
+      const newScale = e.deltaY < 0 ? scale * zoomFactor : scale / zoomFactor;
+      
+      // Boundary check for scale to prevent crash
+      if (newScale < 0.1 || newScale > 20000) return;
 
-    setViewportState({
-      scale: newScale,
-      offsetX: newOffsetX,
-      offsetY: newOffsetY,
-    });
-  };
+      // Adjust offsets so the mouse coordinate doesn't jump
+      const newOffsetX = mouseX - worldMouseX * newScale;
+      const newOffsetY = mouseY + worldMouseY * newScale;
+
+      setViewportState({
+        scale: newScale,
+        offsetX: newOffsetX,
+        offsetY: newOffsetY,
+      });
+    };
+
+    canvas.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      canvas.removeEventListener('wheel', handleWheel);
+    };
+  }, [scale, offsetX, offsetY, setViewportState]);
 
   return (
     <div
@@ -1027,7 +1036,6 @@ export const Viewport: React.FC<ViewportProps> = ({
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
-        onWheel={handleWheel}
         style={{ display: 'block' }}
       />
     </div>
