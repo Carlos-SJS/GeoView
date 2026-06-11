@@ -30,7 +30,7 @@ const IconPlus = (
 );
 
 const IconFitAll = (
-  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginRight: '2px' }}>
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5">
     <path d="M15 3h6v6M9 21H3v-6M21 15v6h-6M3 9V3h6" />
     <circle cx="12" cy="12" r="3" />
   </svg>
@@ -936,21 +936,21 @@ function App() {
         <div className="viewport-terminal-container" style={{ position: 'relative' }}>
           {isSidebarCollapsed && (
             <div className="collapsed-canvas-overlay">
-              <div className="collapsed-logo-container">
+              <div className="collapsed-logo-row">
                 <h1 className="logo-text collapsed-logo">
                   Geo<span>View</span>
                 </h1>
-              </div>
-              <div className="collapsed-toolbar">
                 <button
-                  className="toolbar-btn"
+                  className="collapsed-expand-btn"
                   onClick={() => setIsSidebarCollapsed(false)}
                   title="Expand Sidebar"
                 >
                   {IconExpand}
                 </button>
+              </div>
+              <div className="collapsed-toolbar">
                 <button
-                  className="toolbar-btn"
+                  className="toolbar-btn icon-only"
                   onClick={() => {
                     setIsSidebarCollapsed(false);
                     setSidebarDropdownOpen(true);
@@ -961,28 +961,25 @@ function App() {
                 </button>
                 <div className="toolbar-divider" />
                 <button
-                  className="toolbar-btn"
+                  className="toolbar-btn icon-only"
                   onClick={handleFocusAll}
                   title="Fit All Objects in View"
                 >
                   {IconFitAll}
-                  <span>Fit All</span>
                 </button>
                 <button
-                  className="toolbar-btn"
+                  className="toolbar-btn icon-only"
                   onClick={handleExportScript}
                   title="Export Drawing as TXT Script"
                 >
                   {IconExport}
-                  <span>Export</span>
                 </button>
                 <button
-                  className="toolbar-btn danger"
+                  className="toolbar-btn icon-only danger"
                   onClick={handleClearAll}
                   title="Delete All Canvas Elements"
                 >
                   {IconClear}
-                  <span>Clear</span>
                 </button>
               </div>
             </div>

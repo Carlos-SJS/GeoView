@@ -120,9 +120,6 @@ body, html {
 
 .logo-text span {
   color: var(--accent-blue);
-  background: linear-gradient(135deg, var(--accent-blue), var(--accent-teal));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
 }
 
 .global-actions {
@@ -131,20 +128,24 @@ body, html {
 }
 
 .icon-btn-header {
-  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 6px 8px;
-  font-size: 11px;
-  font-weight: 600;
+  width: 28px;
+  height: 28px;
   background-color: var(--selection-color);
   border: 1px solid var(--border-color);
   border-radius: 4px;
   color: var(--text-bright);
   cursor: pointer;
   transition: all 0.2s ease;
+}
+
+.header-divider {
+  width: 1px;
+  height: 16px;
+  background-color: var(--border-color);
+  margin: 0 4px;
 }
 
 .icon-btn-header:hover {
@@ -1572,8 +1573,32 @@ body, html {
   animation: fadeIn 0.2s ease-out;
 }
 
-.collapsed-logo-container {
+.collapsed-logo-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   pointer-events: auto;
+}
+
+.collapsed-expand-btn {
+  background-color: rgba(33, 37, 43, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--selection-color);
+  border-radius: 6px;
+  color: var(--text-normal);
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.collapsed-expand-btn:hover {
+  background-color: var(--selection-color);
+  color: var(--text-bright);
 }
 
 .collapsed-logo {
@@ -1583,15 +1608,11 @@ body, html {
   margin: 0;
   letter-spacing: -0.5px;
   color: var(--text-bright);
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
   user-select: none;
 }
 
 .collapsed-logo span {
   color: var(--accent-blue);
-  background: linear-gradient(135deg, var(--accent-blue), var(--accent-teal));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
 }
 
 .collapsed-toolbar {
@@ -1605,6 +1626,13 @@ body, html {
   padding: 4px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   pointer-events: auto;
+}
+
+.toolbar-btn.icon-only {
+  padding: 6px;
+  width: 28px;
+  height: 28px;
+  justify-content: center;
 }
 
 .toolbar-btn.danger:hover {
