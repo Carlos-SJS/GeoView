@@ -15,12 +15,16 @@ interface SidebarProps {
   onAddObject: (obj: GeometricObject) => void;
   onFocusAll: () => void;
   onClearAll: () => void;
-  onAddLog: (command: string, success: boolean, error?: string) => void;
+  onExport: () => void;
   calcVariables: CalculatorVariable[];
   onAddCalcVariable: (name: string, expression: string) => string | null;
   onDeleteCalcVariable: (name: string) => void;
   onReorderCalcVariables: (newVars: CalculatorVariable[]) => void;
   onUpdateCalcVariable: (oldName: string, newName: string, newExpression: string) => string | null;
+  isCollapsed: boolean;
+  onCollapseToggle: () => void;
+  dropdownOpen: boolean;
+  setDropdownOpen: (open: boolean) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -32,16 +36,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onAddObject,
   onFocusAll,
   onClearAll,
-  onAddLog,
+  onExport,
   calcVariables,
   onAddCalcVariable,
   onDeleteCalcVariable,
   onReorderCalcVariables,
   onUpdateCalcVariable,
+  isCollapsed,
+  onCollapseToggle,
+  dropdownOpen,
+  setDropdownOpen,
 }) => {
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [showExportModal, setShowExportModal] = useState(false);
-  const [exportedScriptText, setExportedScriptText] = useState('');
   const [elementsExpanded, setElementsExpanded] = useState(true);
   const [calcExpanded, setCalcExpanded] = useState(true);
 
@@ -145,88 +150,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <path d="M21 7v6h-6" strokeLinecap="round" strokeLinejoin="round" />
         <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
+    ),
+    collapse: (
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5">
+        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+        <line x1="9" y1="3" x2="9" y2="21" />
+        <path d="M16 15l-3-3 3-3" />
+      </svg>
     )
   };
 
-  // Helper to create object script command representation
-  const getObjectCommand = (obj: GeometricObject): string => {
-    const colorArg = `, "${obj.color}"`;
-    const fillArg = obj.fill === false ? ', false' : '';
-    switch (obj.type) {
-      case 'point': {
-        const xStr = obj.xRef || obj.x.toString();
-        const yStr = obj.yRef || obj.y.toString();
-        return `${obj.name} = point(${xStr}, ${yStr}${colorArg})`;
-      }
-      case 'line': {
-        const p1Str = typeof obj.p1 === 'string' ? obj.p1 : `(${obj.p1.x},${obj.p1.y})`;
-        const p2Str = typeof obj.p2 === 'string' ? obj.p2 : `(${obj.p2.x},${obj.p2.y})`;
-        return `${obj.name} = line(${p1Str}, ${p2Str}${colorArg})`;
-      }
-      case 'circle': {
-        const centerStr = typeof obj.center === 'string' ? obj.center : `(${obj.center.x},${obj.center.y})`;
-        const rStr = obj.radiusRef || obj.radius.toString();
-        return `${obj.name} = circle(${centerStr}, ${rStr}${colorArg}${fillArg})`;
-      }
-      case 'polygon': {
-        const ptsStr = obj.points.map(p => typeof p === 'string' ? p : `(${p.x},${p.y})`).join(', ');
-        return `${obj.name} = polygon(${ptsStr}${colorArg}${fillArg})`;
-      }
-      case 'angle':
-        return `${obj.name} = angle(${obj.pA}, ${obj.pB}, ${obj.pC}${colorArg})`;
-      case 'vector': {
-        if (obj.op && obj.v1Ref && obj.v2Ref) {
-          const sign = obj.op === 'add' ? '+' : '-';
-          return `${obj.name} = ${obj.v1Ref} ${sign} ${obj.v2Ref}${colorArg}`;
-        }
-        const p1Str = typeof obj.p1 === 'string' ? obj.p1 : `(${obj.p1.x},${obj.p1.y})`;
-        const p2Str = typeof obj.p2 === 'string' ? obj.p2 : `(${obj.p2.x},${obj.p2.y})`;
-        return `${obj.name} = vec(${p1Str}, ${p2Str}${colorArg})`;
-      }
-    }
-  };
 
-  // Export state as a sequence of script commands
-  const handleExportScript = () => {
-    if (objectsList.length === 0 && calcVariables.length === 0) {
-      alert("No elements or calculator variables to export!");
-      return;
-    }
-
-    // Order items: points first, then vectors, lines, circles, polygons, then angles
-    const sorted = [...objectsList].sort((a, b) => {
-      const rank = { point: 1, vector: 2, line: 3, circle: 4, polygon: 5, angle: 6 };
-      return rank[a.type] - rank[b.type];
-    });
-
-    const geomScript = sorted.map(getObjectCommand).join('\n');
-    const calcScript = calcVariables.map(v => `${v.name} = ${v.expression}`).join('\n');
-    const scriptText = [geomScript, calcScript].filter(Boolean).join('\n');
-    setExportedScriptText(scriptText);
-
-    // Copy to clipboard
-    navigator.clipboard.writeText(scriptText)
-      .then(() => {
-        onAddLog(`// Exported Script:\n${scriptText}`, true);
-        setShowExportModal(true);
-      })
-      .catch((err) => {
-        console.error("Failed to copy script: ", err);
-        // Show modal so they can copy manually
-        setShowExportModal(true);
-      });
-  };
-
-  const handleDownloadTxt = () => {
-    const element = document.createElement("a");
-    const file = new Blob([exportedScriptText], { type: 'text/plain;charset=utf-8' });
-    element.href = URL.createObjectURL(file);
-    element.download = "geoview_export.txt";
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
-    setShowExportModal(false);
-  };
 
   // Instantiates a default object
   const createDefaultObject = (type: ObjectType) => {
@@ -439,16 +373,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   return (
-    <div className="sidebar" style={{ backgroundColor: ONE_DARK_COLORS.sidebarBackground }}>
+    <div className={`sidebar ${isCollapsed ? 'collapsed' : ''}`} style={{ backgroundColor: ONE_DARK_COLORS.sidebarBackground }}>
       <div className="sidebar-header">
-        <h1 className="logo-text">
-          Geo<span>View</span>
-        </h1>
+        <div className="logo-collapse-row">
+          <h1 className="logo-text">
+            Geo<span>View</span>
+          </h1>
+          <button
+            className="collapse-sidebar-btn"
+            onClick={onCollapseToggle}
+            title="Collapse Sidebar"
+          >
+            {Icons.collapse}
+          </button>
+        </div>
         <div className="global-actions">
           <button className="icon-btn-header" onClick={onFocusAll} title="Fit All Objects in View">
             {Icons.viewport} <span>Fit All</span>
           </button>
-          <button className="icon-btn-header" onClick={handleExportScript} title="Export Drawing as TXT Script">
+          <button className="icon-btn-header" onClick={onExport} title="Export Drawing as TXT Script">
             {Icons.export} <span>Export</span>
           </button>
           <button className="icon-btn-header danger" onClick={onClearAll} title="Delete All Canvas Elements">
@@ -582,54 +525,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
 
-      {/* Export Confirmation Fullscreen Modal */}
-      {showExportModal && (
-        <div className="modal-overlay" onClick={() => setShowExportModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2 className="modal-title">Export Drawing State</h2>
-              <button
-                onClick={() => setShowExportModal(false)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: ONE_DARK_COLORS.textMuted,
-                  fontSize: '20px',
-                  cursor: 'pointer',
-                  padding: 0,
-                  lineHeight: 1
-                }}
-              >
-                ×
-              </button>
-            </div>
-            <div className="modal-body">
-              <p>Geometric script has been successfully copied to your clipboard!</p>
-              <p style={{ marginTop: '8px', fontSize: '12.5px', opacity: 0.8 }}>You can also copy the commands directly from the text box below or download them as a text file.</p>
-              <textarea
-                className="modal-textarea"
-                readOnly
-                value={exportedScriptText}
-                onClick={(e) => (e.target as HTMLTextAreaElement).select()}
-              />
-            </div>
-            <div className="modal-actions">
-              <button
-                className="modal-btn secondary"
-                onClick={() => setShowExportModal(false)}
-              >
-                OK
-              </button>
-              <button
-                className="modal-btn primary"
-                onClick={handleDownloadTxt}
-              >
-                Download .txt File
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Export modal lifted to App.tsx */}
     </div>
   );
 };

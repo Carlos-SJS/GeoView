@@ -1521,3 +1521,94 @@ body, html {
   font-weight: bold;
 }
 
+/* Collapsed sidebar layout changes */
+.sidebar {
+  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-right-color 0.2s ease;
+}
+
+.sidebar.collapsed {
+  width: 0 !important;
+  border-right-color: transparent;
+  overflow: hidden;
+}
+
+/* Sidebar header logo & collapse button */
+.logo-collapse-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.collapse-sidebar-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.collapse-sidebar-btn:hover {
+  background-color: var(--selection-color);
+  color: var(--text-bright);
+}
+
+/* Floating overlay for collapsed sidebar state */
+.collapsed-canvas-overlay {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+  pointer-events: none;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.collapsed-logo-container {
+  pointer-events: auto;
+}
+
+.collapsed-logo {
+  font-family: var(--font-heading);
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: -0.5px;
+  color: var(--text-bright);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  user-select: none;
+}
+
+.collapsed-logo span {
+  color: var(--accent-blue);
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-teal));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.collapsed-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background-color: rgba(33, 37, 43, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--selection-color);
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  pointer-events: auto;
+}
+
+.toolbar-btn.danger:hover {
+  background-color: var(--accent-red);
+  color: var(--bg-darker);
+}
+
