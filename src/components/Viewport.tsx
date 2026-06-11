@@ -64,7 +64,7 @@ export const Viewport: React.FC<ViewportProps> = ({
   const isGTemporaryDrag = useRef(false);
 
   // Selection vs Dragging refs
-  const pendingSelectionIdRef = useRef<string | null>(null);
+  const pendingSelectionIdRef = useRef<string | null | undefined>(undefined);
   const hasMovedRef = useRef<boolean>(false);
   const dragStartMouseRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
@@ -814,7 +814,7 @@ export const Viewport: React.FC<ViewportProps> = ({
       const distance = Math.hypot(e.clientX - dragStartMouseRef.current.x, e.clientY - dragStartMouseRef.current.y);
       if (distance > 3) {
         hasMovedRef.current = true;
-        pendingSelectionIdRef.current = null;
+        pendingSelectionIdRef.current = undefined;
       }
     }
 
@@ -920,7 +920,7 @@ export const Viewport: React.FC<ViewportProps> = ({
       onSelect(pendingSelectionIdRef.current);
     }
     
-    pendingSelectionIdRef.current = null;
+    pendingSelectionIdRef.current = undefined;
     hasMovedRef.current = false;
   };
 
