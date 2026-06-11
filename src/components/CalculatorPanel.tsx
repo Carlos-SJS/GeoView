@@ -25,6 +25,9 @@ export const CalculatorPanel: React.FC<CalculatorPanelProps> = ({
   const [editNameInput, setEditNameInput] = useState('');
   const [editExprInput, setEditExprInput] = useState('');
 
+  const exprInputRef = useRef<HTMLInputElement | null>(null);
+  const editExprInputRef = useRef<HTMLInputElement | null>(null);
+
   const handleStartEdit = (v: CalculatorVariable) => {
     setEditingVarName(v.name);
     setEditNameInput(v.name);
@@ -154,7 +157,10 @@ export const CalculatorPanel: React.FC<CalculatorPanelProps> = ({
                       value={editNameInput}
                       onChange={(e) => setEditNameInput(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
+                        if (e.key === '=') {
+                          e.preventDefault();
+                          editExprInputRef.current?.focus();
+                        } else if (e.key === 'Enter') {
                           handleSaveEdit(v.name);
                         } else if (e.key === 'Escape') {
                           handleCancelEdit();
@@ -164,6 +170,7 @@ export const CalculatorPanel: React.FC<CalculatorPanelProps> = ({
                     <span className="calc-var-separator">=</span>
                     <input
                       type="text"
+                      ref={editExprInputRef}
                       className="calc-expr-input"
                       style={{ flex: 1, minWidth: 0, padding: '4px', margin: 0 }}
                       value={editExprInput}
@@ -259,10 +266,17 @@ export const CalculatorPanel: React.FC<CalculatorPanelProps> = ({
             placeholder="name"
             value={nameInput}
             onChange={(e) => setNameInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === '=') {
+                e.preventDefault();
+                exprInputRef.current?.focus();
+              }
+            }}
           />
           <span className="calc-equals-symbol">=</span>
           <input
             type="text"
+            ref={exprInputRef}
             className="calc-expr-input"
             placeholder="formula (e.g. dist(A, B))"
             value={exprInput}
