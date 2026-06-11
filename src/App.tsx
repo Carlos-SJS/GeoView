@@ -30,7 +30,38 @@ function App() {
   const [future, setFuture] = useState<Record<string, GeometricObject>[]>([]);
   const dragStartObjects = useRef<Record<string, GeometricObject> | null>(null);
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('geoview_sidebar_collapsed');
+      if (saved !== null) {
+        return saved === 'true';
+      }
+    } catch (e) {
+      console.error('Failed to parse geoview_sidebar_collapsed', e);
+    }
+    return false;
+  });
+  if (false) console.log(setIsSidebarCollapsed);
+
+  const [selectedId, setSelectedId] = useState<string | null>(() => {
+    try {
+      const saved = localStorage.getItem('geoview_selected_id');
+      if (saved) {
+        const savedObjects = localStorage.getItem('geoview_objects');
+        if (savedObjects) {
+          const parsed = JSON.parse(savedObjects);
+          const exists = Object.values(parsed).some((o: any) => o.id === saved);
+          if (exists) {
+            return saved;
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Failed to parse geoview_selected_id', e);
+    }
+    return null;
+  });
+
   const [viewport, setViewport] = useState<ViewportState>(() => {
     try {
       const saved = localStorage.getItem('geoview_viewport');
@@ -41,8 +72,16 @@ function App() {
       console.error('Failed to parse geoview_viewport', e);
     }
     // Centered defaults
-    const canvasWidth = window.innerWidth - 340;
-    const canvasHeight = window.innerHeight - 300;
+    const isSidebarSaved = localStorage.getItem('geoview_sidebar_collapsed') === 'true';
+    const isTerminalSaved = localStorage.getItem('geoview_terminal_collapsed') === 'true';
+    const hasSelection = localStorage.getItem('geoview_selected_id') !== null;
+    
+    const sidebarWidth = isSidebarSaved ? 0 : 340;
+    const rightPanelWidth = hasSelection ? 320 : 0;
+    const canvasWidth = window.innerWidth - sidebarWidth - rightPanelWidth;
+    
+    const terminalHeight = isTerminalSaved ? 94 : 260;
+    const canvasHeight = window.innerHeight - terminalHeight - 40;
     return {
       scale: 40,
       offsetX: canvasWidth / 2,
@@ -50,7 +89,17 @@ function App() {
     };
   });
   const [logs, setLogs] = useState<TerminalLog[]>([]);
-  const [isTerminalCollapsed, setIsTerminalCollapsed] = useState(false);
+  const [isTerminalCollapsed, setIsTerminalCollapsed] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('geoview_terminal_collapsed');
+      if (saved !== null) {
+        return saved === 'true';
+      }
+    } catch (e) {
+      console.error('Failed to parse geoview_terminal_collapsed', e);
+    }
+    return false;
+  });
   const [isHelpOpen, setIsHelpOpen] = useState(false);
 
   // Track window size to compute canvas dimensions for zooming
@@ -68,8 +117,16 @@ function App() {
     // Set initial offset only if not loaded from localStorage
     const saved = localStorage.getItem('geoview_viewport');
     if (!saved) {
-      const canvasWidth = window.innerWidth - 340; 
-      const canvasHeight = window.innerHeight - 300; 
+      const isSidebarSaved = localStorage.getItem('geoview_sidebar_collapsed') === 'true';
+      const isTerminalSaved = localStorage.getItem('geoview_terminal_collapsed') === 'true';
+      const hasSelection = localStorage.getItem('geoview_selected_id') !== null;
+      
+      const sidebarWidth = isSidebarSaved ? 0 : 340;
+      const rightPanelWidth = hasSelection ? 320 : 0;
+      const canvasWidth = window.innerWidth - sidebarWidth - rightPanelWidth;
+      
+      const terminalHeight = isTerminalSaved ? 94 : 260;
+      const canvasHeight = window.innerHeight - terminalHeight - 40; 
       setViewport({
         scale: 40,
         offsetX: canvasWidth / 2,
@@ -104,6 +161,22 @@ function App() {
   useEffect(() => {
     localStorage.setItem('geoview_viewport', JSON.stringify(viewport));
   }, [viewport]);
+
+  useEffect(() => {
+    if (selectedId) {
+      localStorage.setItem('geoview_selected_id', selectedId);
+    } else {
+      localStorage.removeItem('geoview_selected_id');
+    }
+  }, [selectedId]);
+
+  useEffect(() => {
+    localStorage.setItem('geoview_terminal_collapsed', String(isTerminalCollapsed));
+  }, [isTerminalCollapsed]);
+
+  useEffect(() => {
+    localStorage.setItem('geoview_sidebar_collapsed', String(isSidebarCollapsed));
+  }, [isSidebarCollapsed]);
 
   // Reactive re-evaluation of calculator variables and dependent objects whenever objects or calcVariables change
   useEffect(() => {
@@ -332,9 +405,10 @@ function App() {
   }, [past, future, objects]);
 
   const getCanvasDimensions = () => {
-    // Sidebar: 340px, Properties panel: 320px (only when selectedId is non-null)
+    // Sidebar: 340px (only when not collapsed), Properties panel: 320px (only when selectedId is non-null)
+    const sidebarWidth = isSidebarCollapsed ? 0 : 340;
     const rightPanelWidth = selectedId ? 320 : 0;
-    const width = Math.max(200, windowSize.width - 340 - rightPanelWidth);
+    const width = Math.max(200, windowSize.width - sidebarWidth - rightPanelWidth);
     
     // Terminal: 260px when expanded, 94px when collapsed. Header/margins: 40px
     const terminalHeight = isTerminalCollapsed ? 94 : 260;
