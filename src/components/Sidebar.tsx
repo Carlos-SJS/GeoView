@@ -137,7 +137,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </svg>
     ),
     viewport: (
-      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginRight: '2px' }}>
         <path d="M15 3h6v6M9 21H3v-6M21 15v6h-6M3 9V3h6" />
         <circle cx="12" cy="12" r="3" />
       </svg>
@@ -391,28 +391,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
     <div className={`sidebar ${isCollapsed ? 'collapsed' : ''}`} style={{ backgroundColor: ONE_DARK_COLORS.sidebarBackground }}>
       <div className="sidebar-header">
         <div className="logo-collapse-row">
-          <h1 className="logo-text" style={{ margin: 0 }}>
+          <h1 className="logo-text">
             Geo<span>View</span>
           </h1>
-          <div className="global-actions">
-            <button className="icon-btn-header" onClick={onFocusAll} title="Fit All Objects in View">
-              {Icons.viewport}
-            </button>
-            <button className="icon-btn-header" onClick={onExport} title="Export Drawing as TXT Script">
-              {Icons.export}
-            </button>
-            <button className="icon-btn-header danger" onClick={onClearAll} title="Delete All Canvas Elements">
-              {Icons.clear}
-            </button>
-            <div className="header-divider" />
-            <button
-              className="collapse-sidebar-btn"
-              onClick={onCollapseToggle}
-              title="Collapse Sidebar"
-            >
-              {Icons.collapse}
-            </button>
-          </div>
+          <button
+            className="collapse-sidebar-btn"
+            onClick={onCollapseToggle}
+            title="Collapse Sidebar"
+          >
+            {Icons.collapse}
+          </button>
+        </div>
+        <div className="global-actions">
+          <button className="icon-btn-header" onClick={onFocusAll} title="Fit All Objects in View">
+            {Icons.viewport} <span>Fit All</span>
+          </button>
+          <button className="icon-btn-header" onClick={onExport} title="Export Drawing as TXT Script">
+            {Icons.export} <span>Export</span>
+          </button>
+          <button className="icon-btn-header danger" onClick={onClearAll} title="Delete All Canvas Elements">
+            {Icons.clear} <span>Clear</span>
+          </button>
         </div>
       </div>
 
