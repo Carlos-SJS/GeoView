@@ -1,4 +1,4 @@
-export type ObjectType = 'point' | 'line' | 'circle' | 'polygon' | 'angle' | 'vector';
+export type ObjectType = 'point' | 'line' | 'segment' | 'circle' | 'polygon' | 'angle' | 'vector';
 
 export interface PointObject {
   id: string;
@@ -13,15 +13,36 @@ export interface PointObject {
   yRef?: string;
 }
 
-export interface LineObject {
+export interface SegmentObject {
   id: string;
   name: string;
-  type: 'line';
+  type: 'segment';
   p1: string | { x: number; y: number }; // Point name (e.g. 'A') or absolute coordinate
   p2: string | { x: number; y: number }; // Point name (e.g. 'B') or absolute coordinate
   color: string;
   visible: boolean;
   fill?: boolean;
+}
+
+export interface LineObject {
+  id: string;
+  name: string;
+  type: 'line';
+  definitionType: 'points' | 'coefficients' | 'vector';
+  // points: defined by two points/coords (infinite line passing through them)
+  p1?: string | { x: number; y: number };
+  p2?: string | { x: number; y: number };
+  // coefficients: Ax + By + C = 0
+  a?: number;
+  b?: number;
+  c?: number;
+  aRef?: string;
+  bRef?: string;
+  cRef?: string;
+  // vector: normal vector v and constant C (vx * x + vy * y + C = 0)
+  vRef?: string;
+  color: string;
+  visible: boolean;
 }
 
 export interface CircleObject {
@@ -74,6 +95,7 @@ export interface VectorObject {
 
 export type GeometricObject =
   | PointObject
+  | SegmentObject
   | LineObject
   | CircleObject
   | PolygonObject

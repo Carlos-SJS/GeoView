@@ -3,7 +3,7 @@ import { Sidebar } from './components/Sidebar';
 import { Viewport } from './components/Viewport';
 import { PropertiesPanel } from './components/PropertiesPanel';
 import { Terminal } from './components/Terminal';
-import type { GeometricObject, ViewportState, TerminalLog } from './types';
+import type { GeometricObject, LineObject, ViewportState, TerminalLog } from './types';
 import { parseScript } from './parser';
 import { getUnionBoundingBox, getObjectBoundingBox } from './utils/geometry';
 import { ACCENT_PALETTE, ONE_DARK_COLORS } from './utils/theme';
@@ -527,7 +527,7 @@ function App() {
           const rightObj = currentObjects[rightName];
           return !!(leftObj && leftObj.type === 'vector' && rightObj && rightObj.type === 'vector');
         })();
-        const isGeomFunc = /^(point|line|circle|polygon|angle|vec|vector|add|sub)\s*\(/.test(expr) || /^\(/.test(expr) || isVectorArithmetic;
+        const isGeomFunc = /^(point|segment|line|circle|polygon|angle|vec|vector|add|sub)\s*\(/.test(expr) || /^\(/.test(expr) || isVectorArithmetic;
         
         if (!isGeomFunc) {
           isCalculatorAssign = true;
@@ -691,9 +691,17 @@ function App() {
         let changed = false;
         const cloned = { ...item };
         
-        if (cloned.type === 'line') {
+        if (cloned.type === 'segment') {
           if (cloned.p1 === oldName) { cloned.p1 = newName; changed = true; }
           if (cloned.p2 === oldName) { cloned.p2 = newName; changed = true; }
+        } else if (cloned.type === 'line') {
+          const ln = cloned as LineObject;
+          if (ln.definitionType === 'points') {
+            if (ln.p1 === oldName) { ln.p1 = newName; changed = true; }
+            if (ln.p2 === oldName) { ln.p2 = newName; changed = true; }
+          } else if (ln.definitionType === 'vector') {
+            if (ln.vRef === oldName) { ln.vRef = newName; changed = true; }
+          }
         } else if (cloned.type === 'circle') {
           if (cloned.center === oldName) { cloned.center = newName; changed = true; }
         } else if (cloned.type === 'polygon') {
@@ -836,23 +844,39 @@ function App() {
     }
 
     const sorted = [...objectsList].sort((a, b) => {
-      const rank = { point: 1, vector: 2, line: 3, circle: 4, polygon: 5, angle: 6 };
+      const rank: Record<string, number> = { point: 1, vector: 2, segment: 3, line: 4, circle: 5, polygon: 6, angle: 7 };
       return rank[a.type] - rank[b.type];
     });
 
     const getObjectCommandLocal = (obj: GeometricObject): string => {
       const colorArg = `, "${obj.color}"`;
-      const fillArg = obj.fill === false ? ', false' : '';
+      const fillArg = (obj as any).fill === false ? ', false' : '';
       switch (obj.type) {
         case 'point': {
           const xStr = obj.xRef || obj.x.toString();
           const yStr = obj.yRef || obj.y.toString();
           return `${obj.name} = point(${xStr}, ${yStr}${colorArg})`;
         }
-        case 'line': {
+        case 'segment': {
           const p1Str = typeof obj.p1 === 'string' ? obj.p1 : `(${obj.p1.x},${obj.p1.y})`;
           const p2Str = typeof obj.p2 === 'string' ? obj.p2 : `(${obj.p2.x},${obj.p2.y})`;
-          return `${obj.name} = line(${p1Str}, ${p2Str}${colorArg})`;
+          return `${obj.name} = segment(${p1Str}, ${p2Str}${colorArg})`;
+        }
+        case 'line': {
+          const ln = obj as LineObject;
+          if (ln.definitionType === 'points') {
+            const p1Str = typeof ln.p1 === 'string' ? ln.p1 : `(${ln.p1!.x},${ln.p1!.y})`;
+            const p2Str = typeof ln.p2 === 'string' ? ln.p2 : `(${ln.p2!.x},${ln.p2!.y})`;
+            return `${ln.name} = line(${p1Str}, ${p2Str}${colorArg})`;
+          } else if (ln.definitionType === 'coefficients') {
+            const aStr = ln.aRef || ln.a!.toString();
+            const bStr = ln.bRef || ln.b!.toString();
+            const cStr = ln.cRef || ln.c!.toString();
+            return `${ln.name} = line(${aStr}, ${bStr}, ${cStr}${colorArg})`;
+          } else {
+            const cStr = ln.cRef || ln.c!.toString();
+            return `${ln.name} = line(${ln.vRef}, ${cStr}${colorArg})`;
+          }
         }
         case 'circle': {
           const centerStr = typeof obj.center === 'string' ? obj.center : `(${obj.center.x},${obj.center.y})`;

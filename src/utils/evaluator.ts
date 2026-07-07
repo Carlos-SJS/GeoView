@@ -1,5 +1,14 @@
-import type { GeometricObject } from '../types';
-import { resolveVectorEndpoints, getPolygonArea, getPolygonPerimeter, getAngleValue } from './geometry';
+import type { GeometricObject, LineObject } from '../types';
+import {
+  resolveVectorEndpoints,
+  getPolygonArea,
+  getPolygonPerimeter,
+  getAngleValue,
+  resolvePoint,
+  getDistanceToSegment,
+  getDistanceToLine,
+  getLineCoefficients
+} from './geometry';
 
 type Token =
   | { type: 'NUMBER'; value: number }
@@ -359,14 +368,45 @@ export function evaluateAST(
         const arg0 = node.args[0];
         const arg1 = node.args[1];
         if (arg0.type !== 'VARIABLE' || arg1.type !== 'VARIABLE') {
-          throw new Error("dist arguments must be point variables");
+          throw new Error("dist arguments must be geometric variables");
         }
-        const p1 = canvasObjects[arg0.name];
-        const p2 = canvasObjects[arg1.name];
-        if (!p1 || p1.type !== 'point' || !p2 || p2.type !== 'point') {
-          throw new Error("dist arguments must be defined points");
+        const o1 = canvasObjects[arg0.name];
+        const o2 = canvasObjects[arg1.name];
+        if (!o1 || !o2) {
+          throw new Error("dist arguments must be defined geometric elements");
         }
-        return Math.hypot(p2.x - p1.x, p2.y - p1.y);
+        
+        if (o1.type === 'point' && o2.type === 'point') {
+          return Math.hypot(o2.x - o1.x, o2.y - o1.y);
+        }
+        
+        // Point and Segment
+        if (o1.type === 'point' && o2.type === 'segment') {
+          const a = resolvePoint(o2.p1, canvasObjects);
+          const b = resolvePoint(o2.p2, canvasObjects);
+          if (!a || !b) throw new Error("Could not resolve segment endpoints");
+          return getDistanceToSegment(o1.x, o1.y, a, b);
+        }
+        if (o1.type === 'segment' && o2.type === 'point') {
+          const a = resolvePoint(o1.p1, canvasObjects);
+          const b = resolvePoint(o1.p2, canvasObjects);
+          if (!a || !b) throw new Error("Could not resolve segment endpoints");
+          return getDistanceToSegment(o2.x, o2.y, a, b);
+        }
+        
+        // Point and Line
+        if (o1.type === 'point' && o2.type === 'line') {
+          const coefs = getLineCoefficients(o2, canvasObjects);
+          if (!coefs) throw new Error("Could not resolve line coefficients");
+          return getDistanceToLine(o1.x, o1.y, coefs.a, coefs.b, coefs.c);
+        }
+        if (o1.type === 'line' && o2.type === 'point') {
+          const coefs = getLineCoefficients(o1, canvasObjects);
+          if (!coefs) throw new Error("Could not resolve line coefficients");
+          return getDistanceToLine(o2.x, o2.y, coefs.a, coefs.b, coefs.c);
+        }
+        
+        throw new Error("dist is only defined between points, point-segment, or point-line");
       }
       if (node.name === 'area') {
         if (node.args.length !== 1) throw new Error("area requires 1 argument");
@@ -550,9 +590,21 @@ function getObjectDependencies(obj: GeometricObject): string[] {
   if (obj.type === 'point') {
     if (obj.xRef) deps.push(obj.xRef);
     if (obj.yRef) deps.push(obj.yRef);
-  } else if (obj.type === 'line') {
+  } else if (obj.type === 'segment') {
     if (typeof obj.p1 === 'string') deps.push(obj.p1);
     if (typeof obj.p2 === 'string') deps.push(obj.p2);
+  } else if (obj.type === 'line') {
+    if (obj.definitionType === 'points') {
+      if (typeof obj.p1 === 'string') deps.push(obj.p1);
+      if (typeof obj.p2 === 'string') deps.push(obj.p2);
+    } else if (obj.definitionType === 'coefficients') {
+      if (obj.aRef) deps.push(obj.aRef);
+      if (obj.bRef) deps.push(obj.bRef);
+      if (obj.cRef) deps.push(obj.cRef);
+    } else if (obj.definitionType === 'vector') {
+      if (obj.vRef) deps.push(obj.vRef);
+      if (obj.cRef) deps.push(obj.cRef);
+    }
   } else if (obj.type === 'circle') {
     if (typeof obj.center === 'string') deps.push(obj.center);
     if (obj.radiusRef) deps.push(obj.radiusRef);
@@ -704,6 +756,45 @@ export function evaluateUnified(
               ...obj,
               radius: newRadius
             };
+          }
+        }
+      } else if (obj.type === 'line') {
+        let updated = false;
+        let newA = obj.a;
+        let newB = obj.b;
+        let newC = obj.c;
+
+        if (obj.definitionType === 'coefficients') {
+          if (obj.aRef && obj.aRef in evaluatedVars) {
+            newA = evaluatedVars[obj.aRef];
+            updated = true;
+          }
+          if (obj.bRef && obj.bRef in evaluatedVars) {
+            newB = evaluatedVars[obj.bRef];
+            updated = true;
+          }
+          if (obj.cRef && obj.cRef in evaluatedVars) {
+            newC = evaluatedVars[obj.cRef];
+            updated = true;
+          }
+          if (updated) {
+            resolvedObjects[name] = {
+              ...obj,
+              a: newA,
+              b: newB,
+              c: newC
+            } as LineObject;
+          }
+        } else if (obj.definitionType === 'vector') {
+          if (obj.cRef && obj.cRef in evaluatedVars) {
+            newC = evaluatedVars[obj.cRef];
+            updated = true;
+          }
+          if (updated) {
+            resolvedObjects[name] = {
+              ...obj,
+              c: newC
+            } as LineObject;
           }
         }
       }

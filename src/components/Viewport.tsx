@@ -1,10 +1,11 @@
 import React, { useRef, useEffect, useState } from 'react';
-import type { GeometricObject, ViewportState } from '../types';
+import type { GeometricObject, LineObject, ViewportState } from '../types';
 import {
-  resolvePoint,
   resolveVectorEndpoints,
   getDistanceToObject,
   getDistance,
+  resolvePoint,
+  getLineCoefficients,
   type Point,
 } from '../utils/geometry';
 import { ONE_DARK_COLORS, hexToRgba } from '../utils/theme';
@@ -414,9 +415,9 @@ export const Viewport: React.FC<ViewportProps> = ({
       ctx.fillText(obj.name, sc.x + scr / Math.sqrt(2) + 4, sc.y - scr / Math.sqrt(2) - 4);
     });
 
-    // 4. Draw Lines
+    // 4. Draw Segments
     objectsList.forEach(obj => {
-      if (obj.type !== 'line' || !obj.visible) return;
+      if (obj.type !== 'segment' || !obj.visible) return;
       const p1 = resolvePoint(obj.p1, objects);
       const p2 = resolvePoint(obj.p2, objects);
       if (!p1 || !p2) return;
@@ -450,6 +451,68 @@ export const Viewport: React.FC<ViewportProps> = ({
         obj.name,
         (s1.x + s2.x) / 2 + 5,
         (s1.y + s2.y) / 2 - 5
+      );
+    });
+
+    // 4.2. Draw Infinite Lines
+    objectsList.forEach(obj => {
+      if (obj.type !== 'line' || !obj.visible) return;
+      const coefs = getLineCoefficients(obj as LineObject, objects);
+      if (!coefs) return;
+      const { a: A, b: B, c: C } = coefs;
+      if (Math.abs(A) < 1e-9 && Math.abs(B) < 1e-9) return;
+
+      // Calculate line endpoints extending 1000px beyond screen bounds in screen/world space
+      let p1World: { x: number; y: number };
+      let p2World: { x: number; y: number };
+
+      const pad = 1000 / scale;
+      if (Math.abs(B) < 1e-9) {
+        // Vertical line (x = -C / A)
+        const xVal = -C / A;
+        p1World = { x: xVal, y: minW.y - pad };
+        p2World = { x: xVal, y: maxW.y + pad };
+      } else {
+        // Non-vertical line
+        const x1 = minW.x - pad;
+        const x2 = maxW.x + pad;
+        const y1 = (-A * x1 - C) / B;
+        const y2 = (-A * x2 - C) / B;
+        p1World = { x: x1, y: y1 };
+        p2World = { x: x2, y: y2 };
+      }
+
+      const s1 = worldToScreen(p1World.x, p1World.y);
+      const s2 = worldToScreen(p2World.x, p2World.y);
+      const isSel = selectedId === obj.id;
+
+      // If selected, draw backing highlight
+      if (isSel) {
+        ctx.strokeStyle = hexToRgba(obj.color, 0.4);
+        ctx.lineWidth = 7;
+        ctx.beginPath();
+        ctx.moveTo(s1.x, s1.y);
+        ctx.lineTo(s2.x, s2.y);
+        ctx.stroke();
+      }
+
+      // Main line stroke
+      ctx.strokeStyle = obj.color;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(s1.x, s1.y);
+      ctx.lineTo(s2.x, s2.y);
+      ctx.stroke();
+
+      // Label at visible midpoint of screen line segment
+      const sMidX = (s1.x + s2.x) / 2;
+      const sMidY = (s1.y + s2.y) / 2;
+      ctx.fillStyle = ONE_DARK_COLORS.textMuted;
+      ctx.font = '11px sans-serif';
+      ctx.fillText(
+        obj.name,
+        sMidX + 10,
+        sMidY - 10
       );
     });
 
@@ -630,7 +693,7 @@ export const Viewport: React.FC<ViewportProps> = ({
               initialY: draggedObj.center.y
             });
           }
-        } else if (draggedObj.type === 'line') {
+        } else if (draggedObj.type === 'segment') {
           [draggedObj.p1, draggedObj.p2].forEach((p, idx) => {
             if (typeof p === 'string') {
               const pt = objects[p];
@@ -642,7 +705,7 @@ export const Viewport: React.FC<ViewportProps> = ({
                   initialY: pt.y
                 });
               }
-            } else {
+            } else if (p) {
               targets.push({
                 type: 'custom_property',
                 objId: draggedObj.id,
@@ -652,6 +715,42 @@ export const Viewport: React.FC<ViewportProps> = ({
               });
             }
           });
+        } else if (draggedObj.type === 'line') {
+          const ln = draggedObj as LineObject;
+          if (ln.definitionType === 'points') {
+            [ln.p1, ln.p2].forEach((p, idx) => {
+              if (typeof p === 'string') {
+                const pt = objects[p];
+                if (pt && pt.type === 'point') {
+                  targets.push({
+                    type: 'point_object',
+                    name: pt.name,
+                    initialX: pt.x,
+                    initialY: pt.y
+                  });
+                }
+              } else if (p) {
+                targets.push({
+                  type: 'custom_property',
+                  objId: ln.id,
+                  propPath: idx === 0 ? 'p1' : 'p2',
+                  initialX: p.x,
+                  initialY: p.y
+                });
+              }
+            });
+          } else {
+            // defined by coefficients or vector
+            if (!ln.cRef && typeof ln.c === 'number') {
+              targets.push({
+                type: 'custom_property',
+                objId: ln.id,
+                propPath: 'c',
+                initialX: ln.c,
+                initialY: 0
+              });
+            }
+          }
         } else if (draggedObj.type === 'vector') {
           const v = draggedObj as any;
           if (v.op && v.v1Ref && v.v2Ref) {
@@ -848,10 +947,16 @@ export const Viewport: React.FC<ViewportProps> = ({
               
             if (target.propPath === 'center' && obj.type === 'circle') {
               obj.center = { x: target.initialX + dx, y: target.initialY + dy };
-            } else if (target.propPath === 'p1' && (obj.type === 'line' || obj.type === 'vector')) {
-              obj.p1 = { x: target.initialX + dx, y: target.initialY + dy };
-            } else if (target.propPath === 'p2' && (obj.type === 'line' || obj.type === 'vector')) {
-              obj.p2 = { x: target.initialX + dx, y: target.initialY + dy };
+            } else if (target.propPath === 'p1' && (obj.type === 'segment' || obj.type === 'line' || obj.type === 'vector')) {
+              (obj as any).p1 = { x: target.initialX + dx, y: target.initialY + dy };
+            } else if (target.propPath === 'p2' && (obj.type === 'segment' || obj.type === 'line' || obj.type === 'vector')) {
+              (obj as any).p2 = { x: target.initialX + dx, y: target.initialY + dy };
+            } else if (target.propPath === 'c' && obj.type === 'line') {
+              const coefs = getLineCoefficients(obj as LineObject, objects);
+              if (coefs) {
+                const { a: A, b: B } = coefs;
+                (obj as any).c = target.initialX - A * dx - B * dy;
+              }
             } else if (target.propPath === 'polygon_vertex' && obj.type === 'polygon' && target.polygonIndex !== undefined) {
               const newPts = [...obj.points];
               newPts[target.polygonIndex] = { x: target.initialX + dx, y: target.initialY + dy };

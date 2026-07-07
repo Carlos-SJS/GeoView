@@ -4,7 +4,7 @@ import { ONE_DARK_COLORS } from '../utils/theme';
 import { generateDefaultName } from '../parser';
 import { CalculatorPanel } from './CalculatorPanel';
 import type { CalculatorVariable } from '../utils/evaluator';
-import { resolveVectorEndpoints } from '../utils/geometry';
+import { resolveVectorEndpoints, getLineCoefficients, formatLineEquation } from '../utils/geometry';
 
 interface SidebarProps {
   objects: Record<string, GeometricObject>;
@@ -75,11 +75,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <circle cx="12" cy="12" r="3" fill="#1e2227" />
       </svg>
     ),
-    line: (
+    segment: (
       <svg className="obj-icon" viewBox="0 0 24 24" width="16" height="16">
         <line x1="4" y1="20" x2="20" y2="4" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
         <circle cx="4" cy="20" r="3" fill="#1e2227" stroke="currentColor" strokeWidth="1.5" />
         <circle cx="20" cy="4" r="3" fill="#1e2227" stroke="currentColor" strokeWidth="1.5" />
+      </svg>
+    ),
+    line: (
+      <svg className="obj-icon" viewBox="0 0 24 24" width="16" height="16">
+        <line x1="2" y1="22" x2="22" y2="2" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+        <polyline points="2,16 2,22 8,22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        <polyline points="22,8 22,2 16,2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     ),
     circle: (
@@ -201,13 +208,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
       case 'point':
         newObj = { id, name, type: 'point', x: 0, y: 0, color, visible: true };
         break;
+      case 'segment':
+        newObj = {
+          id,
+          name,
+          type: 'segment',
+          p1: { x: -2, y: -2 },
+          p2: { x: 3, y: 3 },
+          color,
+          visible: true
+        };
+        break;
       case 'line':
         newObj = {
           id,
           name,
           type: 'line',
-          p1: { x: -2, y: -2 },
-          p2: { x: 3, y: 3 },
+          definitionType: 'points',
+          p1: { x: -3, y: 1 },
+          p2: { x: 3, y: -1 },
           color,
           visible: true
         };
@@ -325,10 +344,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
       case 'point':
         dupObj = { ...obj, id: newId, name: newName, x: obj.x + 1, y: obj.y + 1 };
         break;
-      case 'line': {
+      case 'segment': {
         const p1 = typeof obj.p1 === 'string' ? obj.p1 : { x: obj.p1.x + 1, y: obj.p1.y + 1 };
         const p2 = typeof obj.p2 === 'string' ? obj.p2 : { x: obj.p2.x + 1, y: obj.p2.y + 1 };
         dupObj = { ...obj, id: newId, name: newName, p1, p2 };
+        break;
+      }
+      case 'line': {
+        const ln = obj as any;
+        if (ln.definitionType === 'points') {
+          const p1 = typeof ln.p1 === 'string' ? ln.p1 : { x: ln.p1.x + 1, y: ln.p1.y + 1 };
+          const p2 = typeof ln.p2 === 'string' ? ln.p2 : { x: ln.p2.x + 1, y: ln.p2.y + 1 };
+          dupObj = { ...ln, id: newId, name: newName, p1, p2 };
+        } else {
+          let newC = ln.c;
+          if (!ln.cRef && typeof ln.c === 'number') {
+            newC = ln.c + 1;
+          }
+          dupObj = { ...ln, id: newId, name: newName, c: newC };
+        }
         break;
       }
       case 'circle': {
@@ -360,10 +394,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
     switch (obj.type) {
       case 'point':
         return `(${obj.x.toFixed(2)}, ${obj.y.toFixed(2)})`;
-      case 'line': {
+      case 'segment': {
         const p1s = typeof obj.p1 === 'string' ? obj.p1 : `(${obj.p1.x},${obj.p1.y})`;
         const p2s = typeof obj.p2 === 'string' ? obj.p2 : `(${obj.p2.x},${obj.p2.y})`;
         return `${p1s} ➔ ${p2s}`;
+      }
+      case 'line': {
+        const coefs = getLineCoefficients(obj as any, objects);
+        if (!coefs) return 'line: Undefined';
+        return formatLineEquation(coefs.a, coefs.b, coefs.c);
       }
       case 'vector': {
         const eps = resolveVectorEndpoints(obj, objects);
@@ -430,8 +469,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button className="dropdown-item" onClick={() => createDefaultObject('point')}>
               {Icons.point} Point
             </button>
+            <button className="dropdown-item" onClick={() => createDefaultObject('segment')}>
+              {Icons.segment} Line Segment
+            </button>
             <button className="dropdown-item" onClick={() => createDefaultObject('line')}>
-              {Icons.line} Line Segment
+              {Icons.line} Infinite Line
             </button>
             <button className="dropdown-item" onClick={() => createDefaultObject('vector')}>
               {Icons.vector} Vector

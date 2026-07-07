@@ -43,6 +43,7 @@ export function generateDefaultName(
   existingNames: Set<string>
 ): string {
   let prefix = 'p';
+  if (type === 'segment') prefix = 's';
   if (type === 'line') prefix = 'l';
   if (type === 'circle') prefix = 'c';
   if (type === 'polygon') prefix = 'poly';
@@ -335,9 +336,9 @@ export function parseScript(
           break;
         }
 
-        case 'line': {
+        case 'segment': {
           if (argTokens.length !== 2 && argTokens.length !== 4) {
-            throw new Error(`"line" requires either 2 points/coordinates, or 4 coordinate values: line(p1, p2) or line(x1, y1, x2, y2).`);
+            throw new Error(`"segment" requires either 2 points/coordinates, or 4 coordinate values: segment(p1, p2) or segment(x1, y1, x2, y2).`);
           }
 
           let p1: string | { x: number; y: number };
@@ -358,7 +359,7 @@ export function parseScript(
               }
               p1 = arg1;
             } else {
-              throw new Error(`Invalid line argument "${arg1}". Expected point name or coordinate pair like (x,y).`);
+              throw new Error(`Invalid segment argument "${arg1}". Expected point name or coordinate pair like (x,y).`);
             }
 
             // Handle arg2
@@ -372,29 +373,206 @@ export function parseScript(
               }
               p2 = arg2;
             } else {
-              throw new Error(`Invalid line argument "${arg2}". Expected point name or coordinate pair like (x,y).`);
+              throw new Error(`Invalid segment argument "${arg2}". Expected point name or coordinate pair like (x,y).`);
             }
           } else {
             // 4 arguments: x1, y1, x2, y2
             const [x1s, y1s, x2s, y2s] = argTokens;
             if (!NUMBER_REGEX.test(x1s) || !NUMBER_REGEX.test(y1s) || !NUMBER_REGEX.test(x2s) || !NUMBER_REGEX.test(y2s)) {
-              throw new Error(`Coordinates must be numbers in line(${x1s}, ${y1s}, ${x2s}, ${y2s})`);
+              throw new Error(`Coordinates must be numbers in segment(${x1s}, ${y1s}, ${x2s}, ${y2s})`);
             }
             p1 = { x: parseFloat(x1s), y: parseFloat(y1s) };
             p2 = { x: parseFloat(x2s), y: parseFloat(y2s) };
           }
 
-          const finalName = name || generateDefaultName('line', getActiveNamesSet());
+          const finalName = name || generateDefaultName('segment', getActiveNamesSet());
           createdObject = {
-            id: `ln_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            id: `sg_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
             name: finalName,
-            type: 'line',
+            type: 'segment',
             p1,
             p2,
             color: colorParam || getNextColor(),
             fill: fillParam !== false,
             visible: true
           };
+          break;
+        }
+
+        case 'line': {
+          if (argTokens.length !== 2 && argTokens.length !== 3 && argTokens.length !== 4) {
+            throw new Error(`"line" requires either 2 points/coordinates, 3 equation coefficients, or a vector and scalar C.`);
+          }
+
+          let created: any = null;
+
+          if (argTokens.length === 2) {
+            const [arg1, arg2] = argTokens;
+
+            // Check if first argument is a vector reference
+            const isFirstVec = CPP_VAR_REGEX.test(arg1) && activeObjects[arg1]?.type === 'vector';
+
+            if (isFirstVec) {
+              let c = 0;
+              let cRef: string | undefined = undefined;
+              const isCVar = CPP_VAR_REGEX.test(arg2) && !NUMBER_REGEX.test(arg2);
+              if (isCVar) {
+                const v = calcVariables.find(v => v.name === arg2);
+                if (!v) {
+                  throw new Error(`Variable "${arg2}" is not defined.`);
+                }
+                c = typeof v.value === 'number' ? v.value : parseFloat(v.value as string) || 0;
+                cRef = arg2;
+              } else {
+                if (!NUMBER_REGEX.test(arg2)) {
+                  throw new Error(`"line(vector, C)" C-coefficient must be a number or variable. Received: "${arg2}"`);
+                }
+                c = parseFloat(arg2);
+              }
+
+              const finalName = name || generateDefaultName('line', getActiveNamesSet());
+              created = {
+                id: `ln_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                name: finalName,
+                type: 'line',
+                definitionType: 'vector',
+                vRef: arg1,
+                c,
+                cRef,
+                color: colorParam || getNextColor(),
+                visible: true
+              };
+            } else {
+              // Two points or coordinates
+              let p1: string | { x: number; y: number };
+              let p2: string | { x: number; y: number };
+
+              // Handle p1
+              const coord1 = arg1.match(COORD_REGEX);
+              if (coord1) {
+                p1 = { x: parseFloat(coord1[1]), y: parseFloat(coord1[2]) };
+              } else if (CPP_VAR_REGEX.test(arg1)) {
+                const pt = Object.values(activeObjects).find(o => o.name === arg1);
+                if (!pt || pt.type !== 'point') {
+                  throw new Error(`Point reference "${arg1}" is not defined.`);
+                }
+                p1 = arg1;
+              } else {
+                throw new Error(`Invalid line argument "${arg1}". Expected point name or coordinate pair like (x,y).`);
+              }
+
+              // Handle p2
+              const coord2 = arg2.match(COORD_REGEX);
+              if (coord2) {
+                p2 = { x: parseFloat(coord2[1]), y: parseFloat(coord2[2]) };
+              } else if (CPP_VAR_REGEX.test(arg2)) {
+                const pt = Object.values(activeObjects).find(o => o.name === arg2);
+                if (!pt || pt.type !== 'point') {
+                  throw new Error(`Point reference "${arg2}" is not defined.`);
+                }
+                p2 = arg2;
+              } else {
+                throw new Error(`Invalid line argument "${arg2}". Expected point name or coordinate pair like (x,y).`);
+              }
+
+              const finalName = name || generateDefaultName('line', getActiveNamesSet());
+              created = {
+                id: `ln_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                name: finalName,
+                type: 'line',
+                definitionType: 'points',
+                p1,
+                p2,
+                color: colorParam || getNextColor(),
+                visible: true
+              };
+            }
+          } else if (argTokens.length === 3) {
+            // line(A, B, C)
+            const [as, bs, cs] = argTokens;
+            let a = 0, b = 0, c = 0;
+            let aRef: string | undefined = undefined;
+            let bRef: string | undefined = undefined;
+            let cRef: string | undefined = undefined;
+
+            // Parse A
+            const isAVar = CPP_VAR_REGEX.test(as) && !NUMBER_REGEX.test(as);
+            if (isAVar) {
+              const v = calcVariables.find(v => v.name === as);
+              if (!v) throw new Error(`Variable "${as}" is not defined.`);
+              a = typeof v.value === 'number' ? v.value : parseFloat(v.value as string) || 0;
+              aRef = as;
+            } else {
+              if (!NUMBER_REGEX.test(as)) throw new Error(`Line coefficient A must be a number or variable. Received: "${as}"`);
+              a = parseFloat(as);
+            }
+
+            // Parse B
+            const isBVar = CPP_VAR_REGEX.test(bs) && !NUMBER_REGEX.test(bs);
+            if (isBVar) {
+              const v = calcVariables.find(v => v.name === bs);
+              if (!v) throw new Error(`Variable "${bs}" is not defined.`);
+              b = typeof v.value === 'number' ? v.value : parseFloat(v.value as string) || 0;
+              bRef = bs;
+            } else {
+              if (!NUMBER_REGEX.test(bs)) throw new Error(`Line coefficient B must be a number or variable. Received: "${bs}"`);
+              b = parseFloat(bs);
+            }
+
+            // Parse C
+            const isCVar = CPP_VAR_REGEX.test(cs) && !NUMBER_REGEX.test(cs);
+            if (isCVar) {
+              const v = calcVariables.find(v => v.name === cs);
+              if (!v) throw new Error(`Variable "${cs}" is not defined.`);
+              c = typeof v.value === 'number' ? v.value : parseFloat(v.value as string) || 0;
+              cRef = cs;
+            } else {
+              if (!NUMBER_REGEX.test(cs)) throw new Error(`Line coefficient C must be a number or variable. Received: "${cs}"`);
+              c = parseFloat(cs);
+            }
+
+            if (Math.abs(a) < 1e-9 && Math.abs(b) < 1e-9) {
+              throw new Error("Line coefficients A and B cannot both be zero.");
+            }
+
+            const finalName = name || generateDefaultName('line', getActiveNamesSet());
+            created = {
+              id: `ln_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+              name: finalName,
+              type: 'line',
+              definitionType: 'coefficients',
+              a,
+              b,
+              c,
+              aRef,
+              bRef,
+              cRef,
+              color: colorParam || getNextColor(),
+              visible: true
+            };
+          } else {
+            // 4 arguments: x1, y1, x2, y2
+            const [x1s, y1s, x2s, y2s] = argTokens;
+            if (!NUMBER_REGEX.test(x1s) || !NUMBER_REGEX.test(y1s) || !NUMBER_REGEX.test(x2s) || !NUMBER_REGEX.test(y2s)) {
+              throw new Error(`Coordinates must be numbers in line(${x1s}, ${y1s}, ${x2s}, ${y2s})`);
+            }
+            const p1 = { x: parseFloat(x1s), y: parseFloat(y1s) };
+            const p2 = { x: parseFloat(x2s), y: parseFloat(y2s) };
+
+            const finalName = name || generateDefaultName('line', getActiveNamesSet());
+            created = {
+              id: `ln_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+              name: finalName,
+              type: 'line',
+              definitionType: 'points',
+              p1,
+              p2,
+              color: colorParam || getNextColor(),
+              visible: true
+            };
+          }
+
+          createdObject = created;
           break;
         }
 
@@ -675,7 +853,7 @@ export function parseScript(
         }
 
         default:
-          throw new Error(`Unknown geometry function "${funcName}". Supported functions are: point, line, circle, polygon, angle, vec, add, sub.`);
+          throw new Error(`Unknown geometry function "${funcName}". Supported functions are: point, segment, line, circle, polygon, angle, vec, add, sub.`);
       }
 
       // Add to rolling list of parsed objects and active set
@@ -705,7 +883,8 @@ export interface Suggestion {
 
 const SYNTAX_SUGGESTIONS: Record<string, Suggestion> = {
   point: { syntax: 'point(x, y)', description: 'Create a point at coordinates (x, y)' },
-  line: { syntax: 'line(p1, p2) or line(x1, y1, x2, y2)', description: 'Create a line segment between points/coordinates' },
+  segment: { syntax: 'segment(p1, p2) or segment(x1, y1, x2, y2)', description: 'Create a line segment between points/coordinates' },
+  line: { syntax: 'line(p1, p2), line(A, B, C), or line(vector, C)', description: 'Create an infinite line' },
   circle: { syntax: 'circle(center, radius) or circle(x, y, radius)', description: 'Create a circle with center point and radius' },
   polygon: { syntax: 'polygon(p1, p2, p3, ...)', description: 'Create a polygon through a set of points' },
   angle: { syntax: 'angle(A, B, C)', description: 'Measure angle ABC at vertex B' },

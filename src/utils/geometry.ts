@@ -1,4 +1,4 @@
-import type { GeometricObject } from '../types';
+import type { GeometricObject, LineObject } from '../types';
 
 export interface Point {
   x: number;
@@ -117,7 +117,99 @@ export function getLineLength(
   return getDistance(pt1, pt2);
 }
 
-// Line equation Ax + By + C = 0 formatted
+// Helper to resolve an infinite line's current coefficients (A, B, C)
+export function getLineCoefficients(
+  obj: LineObject,
+  objects: Record<string, GeometricObject>
+): { a: number; b: number; c: number } | null {
+  if (obj.type !== 'line') return null;
+  
+  if (obj.definitionType === 'points') {
+    const p1 = resolvePoint(obj.p1!, objects);
+    const p2 = resolvePoint(obj.p2!, objects);
+    if (!p1 || !p2) return null;
+    
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    if (Math.abs(dx) < 1e-9 && Math.abs(dy) < 1e-9) {
+      return { a: 0, b: 0, c: 0 };
+    }
+    return {
+      a: dy,
+      b: -dx,
+      c: dx * p1.y - dy * p1.x
+    };
+  } else if (obj.definitionType === 'coefficients') {
+    return {
+      a: obj.a ?? 0,
+      b: obj.b ?? 0,
+      c: obj.c ?? 0
+    };
+  } else if (obj.definitionType === 'vector') {
+    if (!obj.vRef) return null;
+    const vec = objects[obj.vRef];
+    if (!vec || vec.type !== 'vector') return null;
+    const eps = resolveVectorEndpoints(vec, objects);
+    if (!eps) return null;
+    
+    const vx = eps.p2.x - eps.p1.x;
+    const vy = eps.p2.y - eps.p1.y;
+    
+    return {
+      a: vx,
+      b: vy,
+      c: obj.c ?? 0
+    };
+  }
+  
+  return null;
+}
+
+// Distance from point to infinite line
+export function getDistanceToLine(px: number, py: number, A: number, B: number, C: number): number {
+  const denom = Math.hypot(A, B);
+  if (denom === 0) return Math.hypot(px, py);
+  return Math.abs(A * px + B * py + C) / denom;
+}
+
+// Standardize and format equation Ax + By + C = 0 into string
+export function formatLineEquation(A: number, B: number, C: number): string {
+  if (Math.abs(A) < 1e-9 && Math.abs(B) < 1e-9) {
+    return 'Invalid Line';
+  }
+  
+  let nA = A;
+  let nB = B;
+  let nC = C;
+  if (nA < -1e-9 || (Math.abs(nA) < 1e-9 && nB < -1e-9)) {
+    nA = -nA;
+    nB = -nB;
+    nC = -nC;
+  }
+  
+  const formatCoef = (val: number, isFirst: boolean, varChar: string) => {
+    if (Math.abs(val) < 1e-5) return '';
+    const rounded = Math.round(val * 1000) / 1000;
+    const sign = rounded < 0 ? '-' : (isFirst ? '' : '+');
+    const absVal = Math.abs(rounded);
+    const coefStr = absVal === 1 ? '' : absVal.toString();
+    return ` ${sign} ${coefStr}${varChar}`;
+  };
+  
+  const aStr = formatCoef(nA, true, 'x');
+  const bStr = formatCoef(nB, aStr === '', 'y');
+  
+  let cStr = '';
+  if (Math.abs(nC) >= 1e-5) {
+    const roundedC = Math.round(nC * 1000) / 1000;
+    cStr = roundedC < 0 ? ` - ${Math.abs(roundedC)}` : ` + ${roundedC}`;
+  }
+  
+  const fullEq = `${aStr}${bStr}${cStr} = 0`.trim();
+  return fullEq.startsWith('+') ? fullEq.substring(1).trim() : fullEq;
+}
+
+// Line equation Ax + By + C = 0 formatted (used for segments)
 export function getLineEquation(
   p1: string | Point,
   p2: string | Point,
@@ -134,39 +226,7 @@ export function getLineEquation(
     return 'Point Line';
   }
   
-  let A = dy;
-  let B = -dx;
-  let C = dx * pt1.y - dy * pt1.x;
-  
-  // Normalize equation (make A > 0, or if A = 0, B > 0)
-  if (A < -1e-9 || (Math.abs(A) < 1e-9 && B < -1e-9)) {
-    A = -A;
-    B = -B;
-    C = -C;
-  }
-  
-  // Make values nicer by dividing by GCD if integers, or rounding slightly
-  const formatCoef = (val: number, isFirst: boolean, varChar: string) => {
-    if (Math.abs(val) < 1e-5) return '';
-    const rounded = Math.round(val * 1000) / 1000;
-    const sign = rounded < 0 ? '-' : (isFirst ? '' : '+');
-    const absVal = Math.abs(rounded);
-    const coefStr = absVal === 1 ? '' : absVal.toString();
-    return ` ${sign} ${coefStr}${varChar}`;
-  };
-  
-  const aStr = formatCoef(A, true, 'x');
-  const bStr = formatCoef(B, aStr === '', 'y');
-  
-  let cStr = '';
-  if (Math.abs(C) >= 1e-5) {
-    const roundedC = Math.round(C * 1000) / 1000;
-    cStr = roundedC < 0 ? ` - ${Math.abs(roundedC)}` : ` + ${roundedC}`;
-  }
-  
-  const fullEq = `${aStr}${bStr}${cStr} = 0`.trim();
-  // Strip starting plus sign if any
-  return fullEq.startsWith('+') ? fullEq.substring(1).trim() : fullEq;
+  return formatLineEquation(dy, -dx, dx * pt1.y - dy * pt1.x);
 }
 
 // Polygon area (Shoelace formula)
@@ -259,7 +319,7 @@ export function getObjectBoundingBox(obj: GeometricObject, objects: Record<strin
     case 'point': {
       return { minX: obj.x, minY: obj.y, maxX: obj.x, maxY: obj.y };
     }
-    case 'line': {
+    case 'segment': {
       const p1 = resolvePoint(obj.p1, objects);
       const p2 = resolvePoint(obj.p2, objects);
       if (!p1 || !p2) return null;
@@ -269,6 +329,9 @@ export function getObjectBoundingBox(obj: GeometricObject, objects: Record<strin
         maxX: Math.max(p1.x, p2.x),
         maxY: Math.max(p1.y, p2.y),
       };
+    }
+    case 'line': {
+      return null; // Infinite lines are excluded from bounding box for Fit All
     }
     case 'vector': {
       const eps = resolveVectorEndpoints(obj, objects);
@@ -357,11 +420,16 @@ export function getDistanceToObject(
     case 'point': {
       return getDistanceToPoint(px, py, obj);
     }
-    case 'line': {
+    case 'segment': {
       const p1 = resolvePoint(obj.p1, objects);
       const p2 = resolvePoint(obj.p2, objects);
       if (!p1 || !p2) return Infinity;
       return getDistanceToSegment(px, py, p1, p2);
+    }
+    case 'line': {
+      const coefs = getLineCoefficients(obj as LineObject, objects);
+      if (!coefs) return Infinity;
+      return getDistanceToLine(px, py, coefs.a, coefs.b, coefs.c);
     }
     case 'vector': {
       const eps = resolveVectorEndpoints(obj, objects);

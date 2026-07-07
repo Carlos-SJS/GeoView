@@ -10,6 +10,8 @@ import {
   getPolygonCentroid,
   getAngleValue,
   type Point,
+  getLineCoefficients,
+  formatLineEquation,
 } from '../utils/geometry';
 import { ACCENT_PALETTE, ONE_DARK_COLORS } from '../utils/theme';
 
@@ -216,19 +218,19 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     );
   };
 
-  const renderLineEditor = (ln: typeof obj & { type: 'line' }) => {
-    const isP1Ref = typeof ln.p1 === 'string';
-    const isP2Ref = typeof ln.p2 === 'string';
+  const renderSegmentEditor = (sg: typeof obj & { type: 'segment' | 'vector' }) => {
+    const isP1Ref = typeof sg.p1 === 'string';
+    const isP2Ref = typeof sg.p2 === 'string';
 
-    const p1Val = isP1Ref ? ln.p1 : ln.p1 as Point;
-    const p2Val = isP2Ref ? ln.p2 : ln.p2 as Point;
+    const p1Val = isP1Ref ? sg.p1 : sg.p1 as Point;
+    const p2Val = isP2Ref ? sg.p2 : sg.p2 as Point;
 
     return (
       <div className="props-group">
         <label className="prop-label">Endpoint 1 (P1)</label>
         <div className="endpoint-selector">
           <select
-            value={isP1Ref ? (ln.p1 as string) : '__custom__'}
+            value={isP1Ref ? (sg.p1 as string) : '__custom__'}
             onChange={(e) => {
               const val = e.target.value;
               if (val === '__custom__') {
@@ -266,7 +268,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         <label className="prop-label" style={{ marginTop: '12px' }}>Endpoint 2 (P2)</label>
         <div className="endpoint-selector">
           <select
-            value={isP2Ref ? (ln.p2 as string) : '__custom__'}
+            value={isP2Ref ? (sg.p2 as string) : '__custom__'}
             onChange={(e) => {
               const val = e.target.value;
               if (val === '__custom__') {
@@ -302,6 +304,197 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         </div>
       </div>
     );
+  };
+
+  const renderLineEditor = (ln: typeof obj & { type: 'line' }) => {
+    if (ln.definitionType === 'points') {
+      const isP1Ref = typeof ln.p1 === 'string';
+      const isP2Ref = typeof ln.p2 === 'string';
+      const p1Val = isP1Ref ? ln.p1 : ln.p1 as Point;
+      const p2Val = isP2Ref ? ln.p2 : ln.p2 as Point;
+      return (
+        <div className="props-group">
+          <label className="prop-label">Definition: By Two Points</label>
+          <label className="prop-label">Point 1 (P1)</label>
+          <div className="endpoint-selector">
+            <select
+              value={isP1Ref ? (ln.p1 as string) : '__custom__'}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '__custom__') {
+                  updateProp({ p1: { x: 0, y: 0 } }, true);
+                } else {
+                  updateProp({ p1: val }, true);
+                }
+              }}
+            >
+              <option value="__custom__">Custom Coordinates</option>
+              {allPoints.map(p => (
+                <option key={p.id} value={p.name}>{p.name} ({p.x}, {p.y})</option>
+              ))}
+            </select>
+            {!isP1Ref && (
+              <div className="coordinate-inputs sub-input">
+                <PropertyNumericInput
+                  value={(p1Val as Point).x}
+                  onChange={(val) => updateProp({ p1: { x: val, y: (p1Val as Point).y } }, false)}
+                  onCommit={(val) => updateProp({ p1: { x: val, y: (p1Val as Point).y } }, true)}
+                  defaultValue={0}
+                  placeholder="X"
+                />
+                <PropertyNumericInput
+                  value={(p1Val as Point).y}
+                  onChange={(val) => updateProp({ p1: { x: (p1Val as Point).x, y: val } }, false)}
+                  onCommit={(val) => updateProp({ p1: { x: (p1Val as Point).x, y: val } }, true)}
+                  defaultValue={0}
+                  placeholder="Y"
+                />
+              </div>
+            )}
+          </div>
+          <label className="prop-label" style={{ marginTop: '12px' }}>Point 2 (P2)</label>
+          <div className="endpoint-selector">
+            <select
+              value={isP2Ref ? (ln.p2 as string) : '__custom__'}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '__custom__') {
+                  updateProp({ p2: { x: 5, y: 5 } }, true);
+                } else {
+                  updateProp({ p2: val }, true);
+                }
+              }}
+            >
+              <option value="__custom__">Custom Coordinates</option>
+              {allPoints.map(p => (
+                <option key={p.id} value={p.name}>{p.name} ({p.x}, {p.y})</option>
+              ))}
+            </select>
+            {!isP2Ref && (
+              <div className="coordinate-inputs sub-input">
+                <PropertyNumericInput
+                  value={(p2Val as Point).x}
+                  onChange={(val) => updateProp({ p2: { x: val, y: (p2Val as Point).y } }, false)}
+                  onCommit={(val) => updateProp({ p2: { x: val, y: (p2Val as Point).y } }, true)}
+                  defaultValue={0}
+                  placeholder="X"
+                />
+                <PropertyNumericInput
+                  value={(p2Val as Point).y}
+                  onChange={(val) => updateProp({ p2: { x: (p2Val as Point).x, y: val } }, false)}
+                  onCommit={(val) => updateProp({ p2: { x: (p2Val as Point).x, y: val } }, true)}
+                  defaultValue={0}
+                  placeholder="Y"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+    
+    if (ln.definitionType === 'coefficients') {
+      return (
+        <div className="props-group">
+          <label className="prop-label">Definition: Ax + By + C = 0</label>
+          <div className="coordinate-inputs" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div className="input-field" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="coord-prefix">A</span>
+                <PropertyNumericInput
+                  value={ln.a ?? 0}
+                  onChange={(val) => updateProp({ a: val }, false)}
+                  onCommit={(val) => updateProp({ a: val }, true)}
+                  defaultValue={1}
+                  disabled={!!ln.aRef}
+                />
+              </div>
+              {ln.aRef && (
+                <span style={{ fontSize: '11px', color: ACCENT_PALETTE[0], opacity: 0.8, marginLeft: '24px' }}>
+                  Driven by: <strong>{ln.aRef}</strong>
+                </span>
+              )}
+            </div>
+            <div className="input-field" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="coord-prefix">B</span>
+                <PropertyNumericInput
+                  value={ln.b ?? 0}
+                  onChange={(val) => updateProp({ b: val }, false)}
+                  onCommit={(val) => updateProp({ b: val }, true)}
+                  defaultValue={0}
+                  disabled={!!ln.bRef}
+                />
+              </div>
+              {ln.bRef && (
+                <span style={{ fontSize: '11px', color: ACCENT_PALETTE[0], opacity: 0.8, marginLeft: '24px' }}>
+                  Driven by: <strong>{ln.bRef}</strong>
+                </span>
+              )}
+            </div>
+            <div className="input-field" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="coord-prefix">C</span>
+                <PropertyNumericInput
+                  value={ln.c ?? 0}
+                  onChange={(val) => updateProp({ c: val }, false)}
+                  onCommit={(val) => updateProp({ c: val }, true)}
+                  defaultValue={0}
+                  disabled={!!ln.cRef}
+                />
+              </div>
+              {ln.cRef && (
+                <span style={{ fontSize: '11px', color: ACCENT_PALETTE[0], opacity: 0.8, marginLeft: '24px' }}>
+                  Driven by: <strong>{ln.cRef}</strong>
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (ln.definitionType === 'vector') {
+      const allVectors = Object.values(objects).filter(o => o.type === 'vector');
+      return (
+        <div className="props-group">
+          <label className="prop-label">Definition: By Vector & C</label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div className="input-field" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label className="prop-label" style={{ fontSize: '11px', textTransform: 'none', margin: 0 }}>Vector Reference</label>
+              <select
+                value={ln.vRef ?? ''}
+                onChange={(e) => updateProp({ vRef: e.target.value }, true)}
+              >
+                <option value="" disabled>Select a vector...</option>
+                {allVectors.map(v => (
+                  <option key={v.id} value={v.name}>{v.name}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="input-field" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="coord-prefix">C</span>
+                <PropertyNumericInput
+                  value={ln.c ?? 0}
+                  onChange={(val) => updateProp({ c: val }, false)}
+                  onCommit={(val) => updateProp({ c: val }, true)}
+                  defaultValue={0}
+                  disabled={!!ln.cRef}
+                />
+              </div>
+              {ln.cRef && (
+                <span style={{ fontSize: '11px', color: ACCENT_PALETTE[0], opacity: 0.8, marginLeft: '24px' }}>
+                  Driven by: <strong>{ln.cRef}</strong>
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return null;
   };
 
   const renderCircleEditor = (cr: typeof obj & { type: 'circle' }) => {
@@ -507,7 +700,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       case 'point':
         list.push({ label: 'Coordinates', value: `(${obj.x.toFixed(4)}, ${obj.y.toFixed(4)})` });
         break;
-      case 'line': {
+      case 'segment': {
         const len = getLineLength(obj.p1, obj.p2, objects);
         const eq = getLineEquation(obj.p1, obj.p2, objects);
         const pt1 = resolvePoint(obj.p1, objects);
@@ -518,6 +711,16 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           const midX = (pt1.x + pt2.x) / 2;
           const midY = (pt1.y + pt2.y) / 2;
           list.push({ label: 'Midpoint', value: `(${midX.toFixed(4)}, ${midY.toFixed(4)})` });
+        }
+        break;
+      }
+      case 'line': {
+        const coefs = getLineCoefficients(obj as any, objects);
+        if (coefs) {
+          const eq = formatLineEquation(coefs.a, coefs.b, coefs.c);
+          list.push({ label: 'Line Equation', value: eq });
+        } else {
+          list.push({ label: 'Line Equation', value: 'Undefined' });
         }
         break;
       }
@@ -682,6 +885,8 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
 
       {/* Editor Section */}
       {obj.type === 'point' && renderPointEditor(obj as any)}
+      {obj.type === 'segment' && renderSegmentEditor(obj as any)}
+      {obj.type === 'line' && renderLineEditor(obj as any)}
       {obj.type === 'vector' && (obj as any).op ? (
         <div className="props-group">
           <label className="prop-label">Vector Definition</label>
@@ -693,7 +898,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
           </p>
         </div>
       ) : (
-        (obj.type === 'line' || obj.type === 'vector') && renderLineEditor(obj as any)
+        obj.type === 'vector' && renderSegmentEditor(obj as any)
       )}
       {obj.type === 'circle' && renderCircleEditor(obj as any)}
       {obj.type === 'polygon' && renderPolygonEditor(obj as any)}
