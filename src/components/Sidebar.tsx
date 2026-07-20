@@ -356,6 +356,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
           const p1 = typeof ln.p1 === 'string' ? ln.p1 : { x: ln.p1.x + 1, y: ln.p1.y + 1 };
           const p2 = typeof ln.p2 === 'string' ? ln.p2 : { x: ln.p2.x + 1, y: ln.p2.y + 1 };
           dupObj = { ...ln, id: newId, name: newName, p1, p2 };
+        } else if (ln.definitionType === 'vector' && ln.p1 !== undefined) {
+          const p1 = typeof ln.p1 === 'string' ? ln.p1 : { x: ln.p1.x + 1, y: ln.p1.y + 1 };
+          dupObj = { ...ln, id: newId, name: newName, p1 };
         } else {
           let newC = ln.c;
           if (!ln.cRef && typeof ln.c === 'number') {

@@ -155,10 +155,18 @@ export function getLineCoefficients(
     const vx = eps.p2.x - eps.p1.x;
     const vy = eps.p2.y - eps.p1.y;
     
+    let cVal = obj.c ?? 0;
+    if (obj.p1 !== undefined) {
+      const pt = resolvePoint(obj.p1, objects);
+      if (pt) {
+        cVal = vx * pt.y - vy * pt.x;
+      }
+    }
+
     return {
-      a: vx,
-      b: vy,
-      c: obj.c ?? 0
+      a: vy,
+      b: -vx,
+      c: cVal
     };
   }
   

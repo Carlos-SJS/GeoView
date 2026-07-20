@@ -739,6 +739,27 @@ export const Viewport: React.FC<ViewportProps> = ({
                 });
               }
             });
+          } else if (ln.definitionType === 'vector' && ln.p1 !== undefined) {
+            const p = ln.p1;
+            if (typeof p === 'string') {
+              const pt = objects[p];
+              if (pt && pt.type === 'point') {
+                targets.push({
+                  type: 'point_object',
+                  name: pt.name,
+                  initialX: pt.x,
+                  initialY: pt.y
+                });
+              }
+            } else if (p) {
+              targets.push({
+                type: 'custom_property',
+                objId: ln.id,
+                propPath: 'p1',
+                initialX: p.x,
+                initialY: p.y
+              });
+            }
           } else {
             // defined by coefficients or vector
             if (!ln.cRef && typeof ln.c === 'number') {

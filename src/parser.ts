@@ -409,25 +409,37 @@ export function parseScript(
           if (argTokens.length === 2) {
             const [arg1, arg2] = argTokens;
 
-            // Check if first argument is a vector reference
+            // Check if either argument is a vector reference
             const isFirstVec = CPP_VAR_REGEX.test(arg1) && activeObjects[arg1]?.type === 'vector';
+            const isSecondVec = CPP_VAR_REGEX.test(arg2) && activeObjects[arg2]?.type === 'vector';
 
-            if (isFirstVec) {
-              let c = 0;
+            if (isFirstVec || isSecondVec) {
+              const vecArg = isFirstVec ? arg1 : arg2;
+              const otherArg = isFirstVec ? arg2 : arg1;
+
+              let p1: string | { x: number; y: number } | undefined = undefined;
+              let c: number | undefined = undefined;
               let cRef: string | undefined = undefined;
-              const isCVar = CPP_VAR_REGEX.test(arg2) && !NUMBER_REGEX.test(arg2);
-              if (isCVar) {
-                const v = calcVariables.find(v => v.name === arg2);
-                if (!v) {
-                  throw new Error(`Variable "${arg2}" is not defined.`);
-                }
-                c = typeof v.value === 'number' ? v.value : parseFloat(v.value as string) || 0;
-                cRef = arg2;
+
+              const coord = otherArg.match(COORD_REGEX);
+              if (coord) {
+                p1 = { x: parseFloat(coord[1]), y: parseFloat(coord[2]) };
+              } else if (CPP_VAR_REGEX.test(otherArg) && activeObjects[otherArg]?.type === 'point') {
+                p1 = otherArg;
               } else {
-                if (!NUMBER_REGEX.test(arg2)) {
-                  throw new Error(`"line(vector, C)" C-coefficient must be a number or variable. Received: "${arg2}"`);
+                const isCVar = CPP_VAR_REGEX.test(otherArg) && !NUMBER_REGEX.test(otherArg);
+                if (isCVar) {
+                  const v = calcVariables.find(v => v.name === otherArg);
+                  if (!v) {
+                    throw new Error(`Variable or point "${otherArg}" is not defined.`);
+                  }
+                  c = typeof v.value === 'number' ? v.value : parseFloat(v.value as string) || 0;
+                  cRef = otherArg;
+                } else if (NUMBER_REGEX.test(otherArg)) {
+                  c = parseFloat(otherArg);
+                } else {
+                  throw new Error(`Invalid line argument "${otherArg}". Expected point reference, coordinate pair (x,y), or scalar C.`);
                 }
-                c = parseFloat(arg2);
               }
 
               const finalName = name || generateDefaultName('line', getActiveNamesSet());
@@ -436,7 +448,8 @@ export function parseScript(
                 name: finalName,
                 type: 'line',
                 definitionType: 'vector',
-                vRef: arg1,
+                vRef: vecArg,
+                p1,
                 c,
                 cRef,
                 color: colorParam || getNextColor(),
@@ -884,7 +897,7 @@ export interface Suggestion {
 const SYNTAX_SUGGESTIONS: Record<string, Suggestion> = {
   point: { syntax: 'point(x, y)', description: 'Create a point at coordinates (x, y)' },
   segment: { syntax: 'segment(p1, p2) or segment(x1, y1, x2, y2)', description: 'Create a line segment between points/coordinates' },
-  line: { syntax: 'line(p1, p2), line(A, B, C), or line(vector, C)', description: 'Create an infinite line' },
+  line: { syntax: 'line(p1, p2), line(A, B, C), line(v, p), or line(v, C)', description: 'Create an infinite line' },
   circle: { syntax: 'circle(center, radius) or circle(x, y, radius)', description: 'Create a circle with center point and radius' },
   polygon: { syntax: 'polygon(p1, p2, p3, ...)', description: 'Create a polygon through a set of points' },
   angle: { syntax: 'angle(A, B, C)', description: 'Measure angle ABC at vertex B' },

@@ -604,6 +604,7 @@ function getObjectDependencies(obj: GeometricObject): string[] {
     } else if (obj.definitionType === 'vector') {
       if (obj.vRef) deps.push(obj.vRef);
       if (obj.cRef) deps.push(obj.cRef);
+      if (typeof obj.p1 === 'string') deps.push(obj.p1);
     }
   } else if (obj.type === 'circle') {
     if (typeof obj.center === 'string') deps.push(obj.center);

@@ -39,7 +39,7 @@ export interface LineObject {
   aRef?: string;
   bRef?: string;
   cRef?: string;
-  // vector: normal vector v and constant C (vx * x + vy * y + C = 0)
+  // vector: direction vector v and point P (or constant C) -> line is parallel to v
   vRef?: string;
   color: string;
   visible: boolean;

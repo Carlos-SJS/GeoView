@@ -16,7 +16,7 @@ export const COMMAND_DOCS: DocCategory[] = [
     items: [
       { name: 'Point', syntax: 'point(x, y) or (x, y)', description: 'Create a point at coordinates (x, y). Support using calculator variables as x/y parameters.', example: 'A = point(2, 3) or B = point(a, b)' },
       { name: 'Segment', syntax: 'segment(p1, p2) or segment(x1, y1, x2, y2)', description: 'Create a line segment between two points or coordinates.', example: 's1 = segment(A, B)' },
-      { name: 'Line', syntax: 'line(p1, p2), line(A, B, C) or line(v, C)', description: 'Create an infinite line (passing through two points, defined by Ax + By + C = 0, or by normal vector and constant C).', example: 'l1 = line(A, B) or l2 = line(1, -1, 3) or l3 = line(v1, -4)' },
+      { name: 'Line', syntax: 'line(p1, p2), line(A, B, C), line(v, p), or line(v, C)', description: 'Create an infinite line (passing through two points, defined by Ax + By + C = 0, or parallel to direction vector v through point p or with constant C).', example: 'l1 = line(A, B) or l2 = line(1, -1, 3) or l3 = line(v1, p1) or l4 = line(v1, -4)' },
       { name: 'Circle', syntax: 'circle(center, radius) or circle(x, y, radius)', description: 'Create a circle with center point and radius. Radius can be a calculator variable reference.', example: 'c1 = circle(A, 4) or c2 = circle((0,0), r)' },
       { name: 'Polygon', syntax: 'polygon(p1, p2, p3, ...)', description: 'Create a polygon through a set of points.', example: 'poly1 = polygon(A, B, (3, 0))' },
       { name: 'Angle', syntax: 'angle(A, B, C)', description: 'Measure angle ABC at vertex B.', example: 'ang1 = angle(A, B, C)' },
