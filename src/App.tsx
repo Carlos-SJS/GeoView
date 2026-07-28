@@ -713,6 +713,21 @@ function App() {
           if (cloned.pA === oldName) { cloned.pA = newName; changed = true; }
           if (cloned.pB === oldName) { cloned.pB = newName; changed = true; }
           if (cloned.pC === oldName) { cloned.pC = newName; changed = true; }
+        } else if (cloned.type === 'group') {
+          cloned.elements = cloned.elements.map(eName => {
+            if (eName === oldName) { changed = true; return newName; }
+            return eName;
+          });
+        } else if (cloned.type === 'convexhull') {
+          if (typeof cloned.source === 'string' && cloned.source === oldName) {
+            cloned.source = newName;
+            changed = true;
+          } else if (Array.isArray(cloned.source)) {
+            cloned.source = cloned.source.map(p => {
+              if (p === oldName) { changed = true; return newName; }
+              return p;
+            });
+          }
         }
         
         if (changed) {
@@ -844,8 +859,8 @@ function App() {
     }
 
     const sorted = [...objectsList].sort((a, b) => {
-      const rank: Record<string, number> = { point: 1, vector: 2, segment: 3, line: 4, circle: 5, polygon: 6, angle: 7 };
-      return rank[a.type] - rank[b.type];
+      const rank: Record<string, number> = { point: 1, vector: 2, segment: 3, line: 4, circle: 5, polygon: 6, angle: 7, group: 8, convexhull: 9 };
+      return (rank[a.type] || 99) - (rank[b.type] || 99);
     });
 
     const getObjectCommandLocal = (obj: GeometricObject): string => {
@@ -898,6 +913,15 @@ function App() {
           const p2Str = typeof obj.p2 === 'string' ? obj.p2 : `(${obj.p2.x},${obj.p2.y})`;
           return `${obj.name} = vec(${p1Str}, ${p2Str}${colorArg})`;
         }
+        case 'group': {
+          return `${obj.name} = group(${obj.elements.join(', ')}${colorArg})`;
+        }
+        case 'convexhull': {
+          const srcStr = typeof obj.source === 'string'
+            ? obj.source
+            : obj.source.map(p => typeof p === 'string' ? p : `(${p.x},${p.y})`).join(', ');
+          return `${obj.name} = convexHull(${srcStr}${colorArg}${fillArg})`;
+        }
       }
     };
 
@@ -942,6 +966,7 @@ function App() {
           onDelete={handleDelete}
           onToggleVisibility={handleToggleVisibility}
           onAddObject={handleAddObjectDirect}
+          onChangeObject={handleChangeObject}
           onFocusAll={handleFocusAll}
           onClearAll={handleClearAll}
           onExport={handleExportScript}

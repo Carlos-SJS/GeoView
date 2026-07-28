@@ -1,4 +1,4 @@
-export type ObjectType = 'point' | 'line' | 'segment' | 'circle' | 'polygon' | 'angle' | 'vector';
+export type ObjectType = 'point' | 'line' | 'segment' | 'circle' | 'polygon' | 'angle' | 'vector' | 'group' | 'convexhull';
 
 export interface PointObject {
   id: string;
@@ -93,6 +93,25 @@ export interface VectorObject {
   v2Ref?: string;                         // Second operand vector name
 }
 
+export interface GroupObject {
+  id: string;
+  name: string;
+  type: 'group';
+  elements: string[];                     // List of object names in the group
+  color: string;
+  visible: boolean;
+}
+
+export interface ConvexHullObject {
+  id: string;
+  name: string;
+  type: 'convexhull';
+  source: string | (string | { x: number; y: number })[]; // Group name or list of points/coords
+  color: string;
+  visible: boolean;
+  fill?: boolean;
+}
+
 export type GeometricObject =
   | PointObject
   | SegmentObject
@@ -100,7 +119,9 @@ export type GeometricObject =
   | CircleObject
   | PolygonObject
   | AngleObject
-  | VectorObject;
+  | VectorObject
+  | GroupObject
+  | ConvexHullObject;
 
 export interface ViewportState {
   scale: number;    // Pixels per unit

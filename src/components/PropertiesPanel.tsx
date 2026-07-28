@@ -12,6 +12,8 @@ import {
   type Point,
   getLineCoefficients,
   formatLineEquation,
+  getGroupPoints,
+  getObjectBoundingBox,
 } from '../utils/geometry';
 import { ACCENT_PALETTE, ONE_DARK_COLORS } from '../utils/theme';
 
@@ -736,6 +738,74 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     );
   };
 
+  const renderGroupEditor = (grp: typeof obj & { type: 'group' }) => {
+    const availableObjects = Object.values(objects).filter(o => o.id !== grp.id && !grp.elements.includes(o.name));
+
+    const handleRemoveElement = (index: number) => {
+      const newElements = grp.elements.filter((_, i) => i !== index);
+      updateProp({ elements: newElements }, true);
+    };
+
+    const handleAddElement = (eName: string) => {
+      if (!eName || grp.elements.includes(eName)) return;
+      updateProp({ elements: [...grp.elements, eName] }, true);
+    };
+
+    return (
+      <div className="props-group">
+        <label className="prop-label">Group Members ({grp.elements.length})</label>
+        <div className="vertices-list">
+          {grp.elements.length === 0 ? (
+            <div style={{ fontSize: '11px', color: ONE_DARK_COLORS.textMuted, fontStyle: 'italic', padding: '4px' }}>
+              No member elements in group. Select below to add.
+            </div>
+          ) : (
+            grp.elements.map((eName, i) => {
+              const el = objects[eName];
+              return (
+                <div key={i} className="vertex-editor-item" style={{ justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span className="vertex-index">{i + 1}</span>
+                    <span style={{ fontWeight: 600, fontSize: '13px', color: el ? el.color : ONE_DARK_COLORS.textLight }}>
+                      {eName} {el ? `(${el.type})` : '(missing)'}
+                    </span>
+                  </div>
+                  <button className="del-vertex-btn" onClick={() => handleRemoveElement(i)}>×</button>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {availableObjects.length > 0 && (
+          <div style={{ marginTop: '8px' }}>
+            <label className="prop-label" style={{ fontSize: '10px', textTransform: 'none', margin: '4px 0 4px 0' }}>
+              Add Element to Group
+            </label>
+            <select
+              value=""
+              onChange={(e) => handleAddElement(e.target.value)}
+              style={{
+                width: '100%',
+                backgroundColor: ONE_DARK_COLORS.sidebarBackground,
+                border: '1px solid var(--border-color)',
+                color: ONE_DARK_COLORS.textLight,
+                padding: '6px 10px',
+                borderRadius: '6px',
+                fontSize: '12px'
+              }}
+            >
+              <option value="" disabled>Select canvas object...</option>
+              {availableObjects.map(o => (
+                <option key={o.id} value={o.name}>{o.name} ({o.type})</option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // Compute stats for display
   const getComputedMetrics = () => {
     const list: { label: string; value: string }[] = [];
@@ -812,6 +882,19 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
             const sign = (obj as any).op === 'add' ? '+' : '-';
             list.push({ label: 'Definition', value: `${(obj as any).v1Ref} ${sign} ${(obj as any).v2Ref}` });
           }
+        }
+        break;
+      }
+      case 'group': {
+        const pts = getGroupPoints(obj, objects);
+        const box = getObjectBoundingBox(obj, objects);
+        list.push({ label: 'Total Members', value: obj.elements.length.toString() });
+        list.push({ label: 'Points Count', value: pts.length.toString() });
+        if (box) {
+          const w = box.maxX - box.minX;
+          const h = box.maxY - box.minY;
+          list.push({ label: 'Bounding Box Width', value: w.toFixed(4) });
+          list.push({ label: 'Bounding Box Height', value: h.toFixed(4) });
         }
         break;
       }
@@ -947,6 +1030,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       {obj.type === 'circle' && renderCircleEditor(obj as any)}
       {obj.type === 'polygon' && renderPolygonEditor(obj as any)}
       {obj.type === 'angle' && renderAngleEditor(obj as any)}
+      {obj.type === 'group' && renderGroupEditor(obj as any)}
 
       {/* Dynamic Calculations Section */}
       <div className="computed-metrics-section">

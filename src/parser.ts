@@ -49,6 +49,8 @@ export function generateDefaultName(
   if (type === 'polygon') prefix = 'poly';
   if (type === 'angle') prefix = 'ang';
   if (type === 'vector') prefix = 'v';
+  if (type === 'group') prefix = 'g';
+  if (type === 'convexhull') prefix = 'ch';
   
   let counter = 1;
   while (existingNames.has(`${prefix}${counter}`)) {
@@ -865,8 +867,36 @@ export function parseScript(
           break;
         }
 
+        case 'group': {
+          const elements: string[] = [];
+          for (const arg of argTokens) {
+            if (!CPP_VAR_REGEX.test(arg)) {
+              throw new Error(`Invalid element reference "${arg}" in group. Expected valid object variable name.`);
+            }
+            const el = activeObjects[arg];
+            if (!el) {
+              throw new Error(`Object reference "${arg}" is not defined.`);
+            }
+            if (name && name === arg) {
+              throw new Error(`Group cannot contain itself.`);
+            }
+            elements.push(arg);
+          }
+
+          const finalName = name || generateDefaultName('group', getActiveNamesSet());
+          createdObject = {
+            id: `grp_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            name: finalName,
+            type: 'group',
+            elements,
+            color: colorParam || getNextColor(),
+            visible: true
+          };
+          break;
+        }
+
         default:
-          throw new Error(`Unknown geometry function "${funcName}". Supported functions are: point, segment, line, circle, polygon, angle, vec, add, sub.`);
+          throw new Error(`Unknown geometry function "${funcName}". Supported functions are: point, segment, line, circle, polygon, angle, vec, group, convexHull, add, sub.`);
       }
 
       // Add to rolling list of parsed objects and active set
@@ -902,6 +932,8 @@ const SYNTAX_SUGGESTIONS: Record<string, Suggestion> = {
   polygon: { syntax: 'polygon(p1, p2, p3, ...)', description: 'Create a polygon through a set of points' },
   angle: { syntax: 'angle(A, B, C)', description: 'Measure angle ABC at vertex B' },
   vec: { syntax: 'vec(p2) or vec(p1, p2)', description: 'Create a vector starting at p1 (default (0,0)) pointing to p2' },
+  group: { syntax: 'group(p1, p2, p3, ...)', description: 'Create a group containing existing objects' },
+  convexhull: { syntax: 'convexHull(group) or convexHull(p1, p2, ...)', description: 'Create a convex hull over a group or points' },
   add: { syntax: 'add(v, w) or v + w', description: 'Add two vectors together' },
   sub: { syntax: 'sub(v, w) or v - w', description: 'Subtract vector w from vector v (starts at tip of w, points to tip of v)' },
 };

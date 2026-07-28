@@ -13,6 +13,7 @@ interface SidebarProps {
   onDelete: (id: string) => void;
   onToggleVisibility: (id: string) => void;
   onAddObject: (obj: GeometricObject) => void;
+  onChangeObject?: (obj: GeometricObject, isCommit?: boolean) => void;
   onFocusAll: () => void;
   onClearAll: () => void;
   onExport: () => void;
@@ -34,6 +35,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onDelete,
   onToggleVisibility,
   onAddObject,
+  onChangeObject,
   onFocusAll,
   onClearAll,
   onExport,
@@ -49,6 +51,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const [elementsExpanded, setElementsExpanded] = useState(true);
   const [calcExpanded, setCalcExpanded] = useState(true);
+  const [groupExpanded, setGroupExpanded] = useState<Record<string, boolean>>({});
+  const [dragOverGroup, setDragOverGroup] = useState<string | null>(null);
 
   const toolbarRef = useRef<HTMLDivElement | null>(null);
 
@@ -111,6 +115,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <line x1="4" y1="20" x2="18" y2="6" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
         <polyline points="12 6 18 6 18 12" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
         <circle cx="4" cy="20" r="1.5" fill="currentColor" />
+      </svg>
+    ),
+    group: (
+      <svg className="obj-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+      </svg>
+    ),
+    convexhull: (
+      <svg className="obj-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 2L20 7L22 17L12 22L2 17L4 7Z" />
       </svg>
     ),
     visible: (
@@ -182,7 +196,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
     )
   };
 
+  // Move element in/out of groups
+  const handleMoveToGroup = (elementName: string, targetGroupName: string | null) => {
+    if (!onChangeObject) return;
+    
+    // Find any group currently containing elementName
+    for (const key of Object.keys(objects)) {
+      const obj = objects[key];
+      if (obj.type === 'group' && obj.elements.includes(elementName)) {
+        if (obj.name === targetGroupName) return; // Already in target group
+        
+        // Remove from current group
+        const newElements = obj.elements.filter(e => e !== elementName);
+        onChangeObject({ ...obj, elements: newElements }, false);
+      }
+    }
 
+    // Add to target group if specified
+    if (targetGroupName && objects[targetGroupName] && objects[targetGroupName].type === 'group') {
+      const targetGroup = objects[targetGroupName] as any;
+      if (!targetGroup.elements.includes(elementName) && elementName !== targetGroupName) {
+        const newElements = [...targetGroup.elements, elementName];
+        onChangeObject({ ...targetGroup, elements: newElements }, true);
+      }
+    }
+  };
 
   // Instantiates a default object
   const createDefaultObject = (type: ObjectType) => {
@@ -256,8 +294,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
           visible: true
         };
         break;
+      case 'group':
+        newObj = {
+          id,
+          name,
+          type: 'group',
+          elements: [],
+          color,
+          visible: true
+        };
+        break;
       case 'angle': {
-        // Find existing points
         const pts = objectsList.filter(o => o.type === 'point') as any[];
         if (pts.length >= 3) {
           newObj = {
@@ -271,7 +318,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             visible: true
           };
         } else {
-          // Auto-create three helper points first
           const nameA = generateDefaultName('point', namesSet);
           const ptA: GeometricObject = {
             id: `pt_${Date.now()}_a`,
@@ -324,6 +370,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
         }
         break;
       }
+      default:
+        newObj = {
+          id,
+          name,
+          type: 'point',
+          x: 0,
+          y: 0,
+          color,
+          visible: true
+        };
     }
 
     onAddObject(newObj);
@@ -387,6 +443,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
         dupObj = { ...obj, id: newId, name: newName, p1, p2 };
         break;
       }
+      case 'group':
+        dupObj = { ...obj, id: newId, name: newName, elements: [...(obj as any).elements] };
+        break;
+      case 'convexhull':
+        dupObj = { ...obj, id: newId, name: newName };
+        break;
     }
 
     onAddObject(dupObj);
@@ -426,7 +488,169 @@ export const Sidebar: React.FC<SidebarProps> = ({
         return `${obj.points.length} vertices`;
       case 'angle':
         return `∠${obj.pA}${obj.pB}${obj.pC}`;
+      case 'group':
+        return `${(obj as any).elements.length} elements`;
+      case 'convexhull': {
+        const src = (obj as any).source;
+        return typeof src === 'string' ? `hull (${src})` : `hull (${src.length} pts)`;
+      }
     }
+  };
+
+  // Grouping structure calculations
+  const groupObjs = objectsList.filter(o => o.type === 'group');
+  const childElementNames = new Set<string>();
+  groupObjs.forEach(g => {
+    (g as any).elements.forEach((eName: string) => childElementNames.add(eName));
+  });
+
+  // Top level objects (not inside any group)
+  const topLevelObjs = objectsList.filter(o => !childElementNames.has(o.name));
+
+  const renderSingleObjectItem = (obj: GeometricObject, isChild = false) => {
+    const isSelected = selectedId === obj.id;
+    const isGroup = obj.type === 'group';
+    const isExpanded = !groupExpanded[obj.id]; // default expanded
+    const isDragTarget = dragOverGroup === obj.name;
+
+    return (
+      <div key={obj.id} style={{ display: 'flex', flexDirection: 'column' }}>
+        <div
+          className={`object-item ${isSelected ? 'selected' : ''} ${!obj.visible ? 'hidden' : ''} ${isChild ? 'group-child-item' : ''} ${isDragTarget ? 'drag-over' : ''}`}
+          onClick={() => onSelect(obj.id)}
+          draggable
+          onDragStart={(e) => {
+            e.dataTransfer.setData('text/plain', obj.name);
+          }}
+          onDragOver={(e) => {
+            if (isGroup) {
+              e.preventDefault();
+              e.stopPropagation();
+              e.dataTransfer.dropEffect = 'move';
+              if (dragOverGroup !== obj.name) setDragOverGroup(obj.name);
+            }
+          }}
+          onDragLeave={(e) => {
+            if (isGroup) {
+              e.preventDefault();
+              setDragOverGroup(null);
+            }
+          }}
+          onDrop={(e) => {
+            if (isGroup) {
+              e.preventDefault();
+              e.stopPropagation();
+              setDragOverGroup(null);
+              const draggedName = e.dataTransfer.getData('text/plain');
+              if (draggedName) handleMoveToGroup(draggedName, obj.name);
+            }
+          }}
+          style={{
+            borderLeftColor: obj.color,
+            marginLeft: isChild ? '16px' : '0px',
+          }}
+        >
+          {isGroup && (
+            <button
+              className="action-btn-list"
+              onClick={(e) => {
+                e.stopPropagation();
+                setGroupExpanded(prev => ({ ...prev, [obj.id]: !prev[obj.id] }));
+              }}
+              style={{ marginRight: '4px', padding: '2px' }}
+              title={isExpanded ? "Collapse Group" : "Expand Group"}
+            >
+              {isExpanded ? '▼' : '▶'}
+            </button>
+          )}
+
+          <div className="item-icon-container" style={{ color: obj.color }}>
+            {Icons[obj.type]}
+          </div>
+          
+          <div className="item-details">
+            <span className="item-name">{obj.name}</span>
+            <span className="item-coords">{getSubText(obj)}</span>
+          </div>
+
+          <div className="item-actions">
+            <button
+              className="action-btn-list"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleVisibility(obj.id);
+              }}
+              title={obj.visible ? 'Hide Object' : 'Show Object'}
+            >
+              {obj.visible ? Icons.visible : Icons.hidden}
+            </button>
+            <button
+              className="action-btn-list"
+              onClick={(e) => handleDuplicate(e, obj)}
+              title="Duplicate Object"
+            >
+              {Icons.duplicate}
+            </button>
+            <button
+              className="action-btn-list danger"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(obj.id);
+              }}
+              title="Delete Object"
+            >
+              {Icons.trash}
+            </button>
+          </div>
+        </div>
+
+        {/* Group child items */}
+        {isGroup && isExpanded && (
+          <div
+            className="group-children-list"
+            style={{
+              marginLeft: '14px',
+              paddingLeft: '6px',
+              borderLeft: `2px solid ${obj.color}40`,
+              marginTop: '4px',
+              marginBottom: '4px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px'
+            }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              e.dataTransfer.dropEffect = 'move';
+              if (dragOverGroup !== obj.name) setDragOverGroup(obj.name);
+            }}
+            onDragLeave={(e) => {
+              e.preventDefault();
+              setDragOverGroup(null);
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setDragOverGroup(null);
+              const draggedName = e.dataTransfer.getData('text/plain');
+              if (draggedName) handleMoveToGroup(draggedName, obj.name);
+            }}
+          >
+            {(obj as any).elements.length === 0 ? (
+              <div style={{ fontSize: '11px', color: ONE_DARK_COLORS.textMuted, fontStyle: 'italic', padding: '4px 8px' }}>
+                Empty group. Drag objects here to add them.
+              </div>
+            ) : (
+              (obj as any).elements.map((childName: string) => {
+                const childObj = objects[childName];
+                if (!childObj) return null;
+                return renderSingleObjectItem(childObj, true);
+              })
+            )}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -490,6 +714,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button className="dropdown-item" onClick={() => createDefaultObject('angle')}>
               {Icons.angle} Angle (ABC)
             </button>
+            <button className="dropdown-item" onClick={() => createDefaultObject('group')}>
+              {Icons.group} Group
+            </button>
           </div>
         )}
       </div>
@@ -503,63 +730,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
               Canvas Elements ({objectsList.length})
             </div>
           </div>
-          <div className="sidebar-section-content">
+          <div
+            className="sidebar-section-content"
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              const draggedName = e.dataTransfer.getData('text/plain');
+              if (draggedName) handleMoveToGroup(draggedName, null);
+            }}
+          >
             {objectsList.length === 0 ? (
               <div className="empty-message">No elements on canvas. Use commands below or the Add button above to create geometry.</div>
             ) : (
               <div className="objects-list">
-                {objectsList.map(obj => {
-                  const isSelected = selectedId === obj.id;
-                  return (
-                    <div
-                      key={obj.id}
-                      className={`object-item ${isSelected ? 'selected' : ''} ${!obj.visible ? 'hidden' : ''}`}
-                      onClick={() => onSelect(obj.id)}
-                      style={{
-                        borderLeftColor: obj.color,
-                      }}
-                    >
-                      <div className="item-icon-container" style={{ color: obj.color }}>
-                        {Icons[obj.type]}
-                      </div>
-                      
-                      <div className="item-details">
-                        <span className="item-name">{obj.name}</span>
-                        <span className="item-coords">{getSubText(obj)}</span>
-                      </div>
-
-                      <div className="item-actions">
-                        <button
-                          className="action-btn-list"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onToggleVisibility(obj.id);
-                          }}
-                          title={obj.visible ? 'Hide Object' : 'Show Object'}
-                        >
-                          {obj.visible ? Icons.visible : Icons.hidden}
-                        </button>
-                        <button
-                          className="action-btn-list"
-                          onClick={(e) => handleDuplicate(e, obj)}
-                          title="Duplicate Object"
-                        >
-                          {Icons.duplicate}
-                        </button>
-                        <button
-                          className="action-btn-list danger"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onDelete(obj.id);
-                          }}
-                          title="Delete Object"
-                        >
-                          {Icons.trash}
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+                {topLevelObjs.map(obj => renderSingleObjectItem(obj))}
               </div>
             )}
           </div>

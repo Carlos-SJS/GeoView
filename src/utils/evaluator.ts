@@ -620,6 +620,16 @@ function getObjectDependencies(obj: GeometricObject): string[] {
     if (typeof obj.p2 === 'string') deps.push(obj.p2);
     if (obj.v1Ref) deps.push(obj.v1Ref);
     if (obj.v2Ref) deps.push(obj.v2Ref);
+  } else if (obj.type === 'group') {
+    deps.push(...obj.elements);
+  } else if (obj.type === 'convexhull') {
+    if (typeof obj.source === 'string') {
+      deps.push(obj.source);
+    } else if (Array.isArray(obj.source)) {
+      obj.source.forEach(p => {
+        if (typeof p === 'string') deps.push(p);
+      });
+    }
   }
   return deps;
 }

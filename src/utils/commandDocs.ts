@@ -23,6 +23,8 @@ export const COMMAND_DOCS: DocCategory[] = [
       { name: 'Vector', syntax: 'vec(p2) or vec(p1, p2)', description: 'Create a vector pointing from p1 (default (0,0)) to p2.', example: 'v1 = vec(A)' },
       { name: 'Vector Add', syntax: 'add(v, w) or v + w', description: 'Add two vectors together dynamically.', example: 'v3 = v1 + v2' },
       { name: 'Vector Sub', syntax: 'sub(v, w) or v - w', description: 'Subtract vector w from vector v dynamically.', example: 'v3 = v1 - v2' },
+      { name: 'Group', syntax: 'group(p1, p2, p3, ...)', description: 'Create a group containing specified canvas objects.', example: 'g1 = group(p1, p2, p3)' },
+      { name: 'Convex Hull', syntax: 'convexHull(group) or convexHull(p1, p2, ...)', description: 'Create a dynamic convex hull polygon over a group or point list.', example: 'ch1 = convexHull(g1) or ch2 = convexHull(p1, p2, p3)' },
     ]
   },
   {

@@ -387,9 +387,72 @@ export function getObjectBoundingBox(obj: GeometricObject, objects: Record<strin
         maxY: Math.max(ptA.y, ptB.y, ptC.y),
       };
     }
+    case 'group': {
+      const subBoxes = obj.elements
+        .map(eName => objects[eName])
+        .filter(Boolean)
+        .map(child => getObjectBoundingBox(child, objects))
+        .filter((b): b is BoundingBox => b !== null);
+      if (subBoxes.length === 0) return null;
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      subBoxes.forEach(b => {
+        minX = Math.min(minX, b.minX);
+        minY = Math.min(minY, b.minY);
+        maxX = Math.max(maxX, b.maxX);
+        maxY = Math.max(maxY, b.maxY);
+      });
+      return { minX, minY, maxX, maxY };
+    }
     default:
       return null;
   }
+}
+
+// Helper to recursively get all point objects belonging to a group or element list
+export function getGroupPoints(
+  groupOrElements: string[] | GeometricObject,
+  objects: Record<string, GeometricObject>,
+  visited: Set<string> = new Set()
+): Point[] {
+  let elementNames: string[] = [];
+  if (Array.isArray(groupOrElements)) {
+    elementNames = groupOrElements;
+  } else if (groupOrElements.type === 'group') {
+    if (visited.has(groupOrElements.name)) return [];
+    visited.add(groupOrElements.name);
+    elementNames = groupOrElements.elements;
+  } else if (groupOrElements.type === 'point') {
+    return [{ x: groupOrElements.x, y: groupOrElements.y }];
+  } else {
+    return [];
+  }
+
+  const result: Point[] = [];
+  for (const name of elementNames) {
+    const el = objects[name];
+    if (!el) continue;
+    if (el.type === 'point') {
+      result.push({ x: el.x, y: el.y });
+    } else if (el.type === 'group') {
+      if (!visited.has(el.name)) {
+        result.push(...getGroupPoints(el, objects, visited));
+      }
+    } else if (el.type === 'segment' || el.type === 'vector') {
+      const p1 = resolvePoint(el.p1, objects);
+      const p2 = resolvePoint((el as any).p2, objects);
+      if (p1) result.push(p1);
+      if (p2) result.push(p2);
+    } else if (el.type === 'polygon') {
+      el.points.forEach(p => {
+        const pt = resolvePoint(p, objects);
+        if (pt) result.push(pt);
+      });
+    } else if (el.type === 'circle') {
+      const center = resolvePoint(el.center, objects);
+      if (center) result.push(center);
+    }
+  }
+  return result;
 }
 
 // Get union bounding box of all objects
@@ -478,6 +541,17 @@ export function getDistanceToObject(
       // Let's also check distance to the arc representation.
       // Arc radius is usually around 30-50 pixels.
       return distToVertex;
+    }
+    case 'group': {
+      let minDist = Infinity;
+      for (const eName of obj.elements) {
+        const child = objects[eName];
+        if (child) {
+          const d = getDistanceToObject(px, py, child, objects);
+          if (d < minDist) minDist = d;
+        }
+      }
+      return minDist;
     }
     default:
       return Infinity;
