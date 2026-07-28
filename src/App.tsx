@@ -281,8 +281,8 @@ function App() {
     
     // Check if the newly added variable has an error
     const addedVar = newList.find(v => v.name === trimmedName);
-    if (addedVar && addedVar.error && addedVar.error.includes("Circular dependency")) {
-      return "Circular dependency detected.";
+    if (addedVar && addedVar.error) {
+      return addedVar.error;
     }
 
     setCalcVariables(newList);
@@ -335,8 +335,8 @@ function App() {
     const { variables: evaluated } = evaluateUnified(updatedList, objects);
 
     const editedVar = evaluated.find(v => v.name === trimmedNewName);
-    if (editedVar && editedVar.error && editedVar.error.includes("Circular dependency")) {
-      return "Circular dependency detected.";
+    if (editedVar && editedVar.error) {
+      return editedVar.error;
     }
 
     setCalcVariables(evaluated);
@@ -527,7 +527,7 @@ function App() {
           const rightObj = currentObjects[rightName];
           return !!(leftObj && leftObj.type === 'vector' && rightObj && rightObj.type === 'vector');
         })();
-        const isGeomFunc = /^(point|segment|line|circle|polygon|angle|vec|vector|add|sub)\s*\(/.test(expr) || /^\(/.test(expr) || isVectorArithmetic;
+        const isGeomFunc = /^(point|segment|line|circle|polygon|angle|vec|vector|add|sub|group|convexhull)\s*\(/i.test(expr) || /^\(/.test(expr) || isVectorArithmetic;
         
         if (!isGeomFunc) {
           isCalculatorAssign = true;
@@ -560,8 +560,9 @@ function App() {
 
           const { variables: evaluated } = evaluateUnified(updatedList, currentObjects);
           const addedVar = evaluated.find(v => v.name === varName);
-          if (addedVar && addedVar.error && addedVar.error.includes("Circular dependency")) {
-            errors.push(`Line ${lineNum}: Circular dependency detected.`);
+          if (addedVar && addedVar.error) {
+            errors.push(`Line ${lineNum}: ${addedVar.error}`);
+            continue;
           } else {
             currentCalcVariables = evaluated;
           }

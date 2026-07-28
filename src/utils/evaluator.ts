@@ -720,11 +720,19 @@ export function evaluateUnified(
         const val = evaluateAST(ast, resolvedObjects, evaluatedVars);
         evaluatedVars[name] = val;
         
-        resultsMap.set(name, {
-          ...v,
-          value: Math.round(val * 1000) / 1000,
-          error: undefined
-        });
+        if (isNaN(val)) {
+          resultsMap.set(name, {
+            ...v,
+            value: 'NaN',
+            error: 'Expression evaluated to NaN'
+          });
+        } else {
+          resultsMap.set(name, {
+            ...v,
+            value: Math.round(val * 1000) / 1000,
+            error: undefined
+          });
+        }
       } catch (e: any) {
         resultsMap.set(name, {
           ...v,
