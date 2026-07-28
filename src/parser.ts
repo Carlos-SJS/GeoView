@@ -895,6 +895,60 @@ export function parseScript(
           break;
         }
 
+        case 'convexhull': {
+          if (argTokens.length === 0) {
+            throw new Error(`"convexHull" requires at least one group reference or list of points.`);
+          }
+
+          let source: string | (string | { x: number; y: number })[];
+
+          if (argTokens.length === 1) {
+            const singleArg = argTokens[0];
+            const targetObj = activeObjects[singleArg];
+            if (targetObj && targetObj.type === 'group') {
+              source = singleArg;
+            } else if (targetObj && targetObj.type === 'point') {
+              source = [singleArg];
+            } else {
+              const coord = singleArg.match(COORD_REGEX);
+              if (coord) {
+                source = [{ x: parseFloat(coord[1]), y: parseFloat(coord[2]) }];
+              } else {
+                throw new Error(`Invalid convexHull argument "${singleArg}". Expected group name, point reference, or coordinate pair.`);
+              }
+            }
+          } else {
+            const pts: (string | { x: number; y: number })[] = [];
+            for (const arg of argTokens) {
+              const coord = arg.match(COORD_REGEX);
+              if (coord) {
+                pts.push({ x: parseFloat(coord[1]), y: parseFloat(coord[2]) });
+              } else if (CPP_VAR_REGEX.test(arg)) {
+                const targetObj = activeObjects[arg];
+                if (!targetObj) {
+                  throw new Error(`Object reference "${arg}" is not defined.`);
+                }
+                pts.push(arg);
+              } else {
+                throw new Error(`Invalid convexHull vertex "${arg}". Expected point name or coordinate pair.`);
+              }
+            }
+            source = pts;
+          }
+
+          const finalName = name || generateDefaultName('convexhull', getActiveNamesSet());
+          createdObject = {
+            id: `ch_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            name: finalName,
+            type: 'convexhull',
+            source,
+            color: colorParam || getNextColor(),
+            fill: fillParam !== false,
+            visible: true
+          };
+          break;
+        }
+
         default:
           throw new Error(`Unknown geometry function "${funcName}". Supported functions are: point, segment, line, circle, polygon, angle, vec, group, convexHull, add, sub.`);
       }

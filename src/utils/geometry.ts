@@ -1,4 +1,4 @@
-import type { GeometricObject, LineObject } from '../types';
+import type { GeometricObject, LineObject, ConvexHullObject } from '../types';
 
 export interface Point {
   x: number;
@@ -403,6 +403,18 @@ export function getObjectBoundingBox(obj: GeometricObject, objects: Record<strin
       });
       return { minX, minY, maxX, maxY };
     }
+    case 'convexhull': {
+      const pts = getConvexHullPoints(obj as ConvexHullObject, objects);
+      if (pts.length === 0) return null;
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      pts.forEach(p => {
+        if (p.x < minX) minX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y > maxY) maxY = p.y;
+      });
+      return { minX, minY, maxX, maxY };
+    }
     default:
       return null;
   }
@@ -453,6 +465,72 @@ export function getGroupPoints(
     }
   }
   return result;
+}
+
+// Andrew's Monotone Chain 2D Convex Hull algorithm O(n log n)
+export function computeConvexHull(points: Point[]): Point[] {
+  if (points.length <= 2) return points;
+
+  // Filter unique points
+  const uniquePts: Point[] = [];
+  for (const pt of points) {
+    if (!uniquePts.some(p => Math.hypot(p.x - pt.x, p.y - pt.y) < 1e-9)) {
+      uniquePts.push(pt);
+    }
+  }
+  if (uniquePts.length <= 2) return uniquePts;
+
+  // Sort lexicographically by X, then Y
+  uniquePts.sort((a, b) => (a.x === b.x ? a.y - b.y : a.x - b.x));
+
+  const cross = (o: Point, a: Point, b: Point) =>
+    (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+
+  const lower: Point[] = [];
+  for (const p of uniquePts) {
+    while (
+      lower.length >= 2 &&
+      cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 1e-9
+    ) {
+      lower.pop();
+    }
+    lower.push(p);
+  }
+
+  const upper: Point[] = [];
+  for (let i = uniquePts.length - 1; i >= 0; i--) {
+    const p = uniquePts[i];
+    while (
+      upper.length >= 2 &&
+      cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 1e-9
+    ) {
+      upper.pop();
+    }
+    upper.push(p);
+  }
+
+  lower.pop();
+  upper.pop();
+  return lower.concat(upper);
+}
+
+// Dynamically compute ordered boundary points of a ConvexHullObject
+export function getConvexHullPoints(
+  hullObj: ConvexHullObject,
+  objects: Record<string, GeometricObject>
+): Point[] {
+  let sourcePoints: Point[] = [];
+  if (typeof hullObj.source === 'string') {
+    const srcObj = objects[hullObj.source];
+    if (srcObj) {
+      sourcePoints = getGroupPoints(srcObj, objects);
+    }
+  } else if (Array.isArray(hullObj.source)) {
+    sourcePoints = hullObj.source
+      .map(p => resolvePoint(p, objects))
+      .filter((p): p is Point => p !== null);
+  }
+  return computeConvexHull(sourcePoints);
 }
 
 // Get union bounding box of all objects
@@ -552,6 +630,18 @@ export function getDistanceToObject(
         }
       }
       return minDist;
+    }
+    case 'convexhull': {
+      const pts = getConvexHullPoints(obj as ConvexHullObject, objects);
+      if (pts.length === 0) return Infinity;
+      if (isPointInPolygon({ x: px, y: py }, pts)) return 0;
+      let minDistance = Infinity;
+      for (let i = 0; i < pts.length; i++) {
+        const next = (i + 1) % pts.length;
+        const d = getDistanceToSegment(px, py, pts[i], pts[next]);
+        if (d < minDistance) minDistance = d;
+      }
+      return minDistance;
     }
     default:
       return Infinity;

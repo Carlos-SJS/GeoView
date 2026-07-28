@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { GeometricObject, PointObject } from '../types';
+import type { GeometricObject, PointObject, ConvexHullObject } from '../types';
 import {
   resolvePoint,
   resolveVectorEndpoints,
@@ -14,6 +14,7 @@ import {
   formatLineEquation,
   getGroupPoints,
   getObjectBoundingBox,
+  getConvexHullPoints,
 } from '../utils/geometry';
 import { ACCENT_PALETTE, ONE_DARK_COLORS } from '../utils/theme';
 
@@ -898,6 +899,21 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         }
         break;
       }
+      case 'convexhull': {
+        const pts = getConvexHullPoints(obj as ConvexHullObject, objects);
+        const area = getPolygonArea(pts, objects);
+        const perm = getPolygonPerimeter(pts, objects);
+        const centroid = getPolygonCentroid(pts, objects);
+        const srcStr = typeof obj.source === 'string' ? `Group (${obj.source})` : `${obj.source.length} Points`;
+        list.push({ label: 'Source', value: srcStr });
+        list.push({ label: 'Hull Vertices', value: pts.length.toString() });
+        list.push({ label: 'Area', value: area !== null ? area.toFixed(4) : 'Undefined' });
+        list.push({ label: 'Perimeter', value: perm !== null ? perm.toFixed(4) : 'Undefined' });
+        if (centroid) {
+          list.push({ label: 'Centroid', value: `(${centroid.x.toFixed(4)}, ${centroid.y.toFixed(4)})` });
+        }
+        break;
+      }
     }
     return list;
   };
@@ -952,8 +968,8 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
         />
       </div>
 
-      {/* Fill Figure toggle (only for circle and polygon) */}
-      {(obj.type === 'circle' || obj.type === 'polygon') && (
+      {/* Fill Figure toggle (only for circle, polygon, and convexhull) */}
+      {(obj.type === 'circle' || obj.type === 'polygon' || obj.type === 'convexhull') && (
         <div className="props-group row-align">
           <label className="prop-label" style={{ margin: 0 }}>Fill Figure</label>
           <input
@@ -1031,6 +1047,17 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
       {obj.type === 'polygon' && renderPolygonEditor(obj as any)}
       {obj.type === 'angle' && renderAngleEditor(obj as any)}
       {obj.type === 'group' && renderGroupEditor(obj as any)}
+      {obj.type === 'convexhull' && (
+        <div className="props-group">
+          <label className="prop-label">Hull Source Definition</label>
+          <div style={{ fontSize: '13.5px', color: ONE_DARK_COLORS.accentActive, fontWeight: 'bold', fontFamily: 'var(--font-sans)', marginTop: '4px' }}>
+            {typeof (obj as any).source === 'string' ? `Group "${(obj as any).source}"` : `${(obj as any).source.length} Points`}
+          </div>
+          <p style={{ fontSize: '11px', color: ONE_DARK_COLORS.textMuted, marginTop: '6px', lineHeight: '1.4' }}>
+            The convex hull dynamically recalculates its boundary whenever the source points move or update.
+          </p>
+        </div>
+      )}
 
       {/* Dynamic Calculations Section */}
       <div className="computed-metrics-section">

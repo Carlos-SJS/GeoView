@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import type { GeometricObject, LineObject, ViewportState } from '../types';
+import type { GeometricObject, LineObject, ViewportState, ConvexHullObject } from '../types';
 import {
   resolveVectorEndpoints,
   getDistanceToObject,
@@ -7,6 +7,7 @@ import {
   resolvePoint,
   getLineCoefficients,
   type Point,
+  getConvexHullPoints,
 } from '../utils/geometry';
 import { ONE_DARK_COLORS, hexToRgba } from '../utils/theme';
 
@@ -365,6 +366,48 @@ export const Viewport: React.FC<ViewportProps> = ({
       ctx.stroke();
 
       // Draw polygon label (near the centroid)
+      let sxSum = 0, sySum = 0;
+      pts.forEach(p => {
+        const s = worldToScreen(p.x, p.y);
+        sxSum += s.x;
+        sySum += s.y;
+      });
+      ctx.fillStyle = ONE_DARK_COLORS.textMuted;
+      ctx.font = 'italic 11px sans-serif';
+      ctx.fillText(obj.name, sxSum / pts.length, sySum / pts.length);
+    });
+
+    // 2.5. Draw Convex Hulls
+    objectsList.forEach(obj => {
+      if (obj.type !== 'convexhull' || !obj.visible) return;
+      const pts = getConvexHullPoints(obj as ConvexHullObject, objects);
+      if (pts.length < 2) return;
+
+      const isSel = selectedId === obj.id;
+
+      ctx.beginPath();
+      const s0 = worldToScreen(pts[0].x, pts[0].y);
+      ctx.moveTo(s0.x, s0.y);
+      for (let i = 1; i < pts.length; i++) {
+        const s = worldToScreen(pts[i].x, pts[i].y);
+        ctx.lineTo(s.x, s.y);
+      }
+      ctx.closePath();
+
+      // Fill
+      if (obj.fill !== false) {
+        ctx.fillStyle = hexToRgba(obj.color, isSel ? 0.28 : 0.15);
+        ctx.fill();
+      }
+
+      // Stroke
+      ctx.strokeStyle = obj.color;
+      ctx.lineWidth = isSel ? 3.5 : 2;
+      ctx.setLineDash([6, 3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Draw label
       let sxSum = 0, sySum = 0;
       pts.forEach(p => {
         const s = worldToScreen(p.x, p.y);
