@@ -14,6 +14,7 @@ interface SidebarProps {
   onToggleVisibility: (id: string) => void;
   onAddObject: (obj: GeometricObject) => void;
   onChangeObject?: (obj: GeometricObject, isCommit?: boolean) => void;
+  onReorderObjects?: (newObjects: Record<string, GeometricObject>) => void;
   onFocusAll: () => void;
   onClearAll: () => void;
   onExport: () => void;
@@ -35,7 +36,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onDelete,
   onToggleVisibility,
   onAddObject,
-  onChangeObject,
+  onChangeObject: _onChangeObject,
+  onReorderObjects,
   onFocusAll,
   onClearAll,
   onExport,
@@ -52,7 +54,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [elementsExpanded, setElementsExpanded] = useState(true);
   const [calcExpanded, setCalcExpanded] = useState(true);
   const [groupExpanded, setGroupExpanded] = useState<Record<string, boolean>>({});
-  const [dragOverGroup, setDragOverGroup] = useState<string | null>(null);
+  const [draggedName, setDraggedName] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<{
+    targetName: string;
+    position: 'above' | 'below' | 'inside' | 'create-group';
+    parentGroupName: string | null;
+  } | null>(null);
 
   const toolbarRef = useRef<HTMLDivElement | null>(null);
 
@@ -194,32 +201,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <path d="M16 15l-3-3 3-3" />
       </svg>
     )
-  };
-
-  // Move element in/out of groups
-  const handleMoveToGroup = (elementName: string, targetGroupName: string | null) => {
-    if (!onChangeObject) return;
-    
-    // Find any group currently containing elementName
-    for (const key of Object.keys(objects)) {
-      const obj = objects[key];
-      if (obj.type === 'group' && obj.elements.includes(elementName)) {
-        if (obj.name === targetGroupName) return; // Already in target group
-        
-        // Remove from current group
-        const newElements = obj.elements.filter(e => e !== elementName);
-        onChangeObject({ ...obj, elements: newElements }, false);
-      }
-    }
-
-    // Add to target group if specified
-    if (targetGroupName && objects[targetGroupName] && objects[targetGroupName].type === 'group') {
-      const targetGroup = objects[targetGroupName] as any;
-      if (!targetGroup.elements.includes(elementName) && elementName !== targetGroupName) {
-        const newElements = [...targetGroup.elements, elementName];
-        onChangeObject({ ...targetGroup, elements: newElements }, true);
-      }
-    }
   };
 
   // Instantiates a default object
@@ -497,6 +478,174 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   };
 
+  // Drag and drop event handlers
+  const handleItemDragOver = (
+    e: React.DragEvent<HTMLDivElement>,
+    obj: GeometricObject,
+    parentGroupName: string | null
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+
+    const currentDragged = e.dataTransfer.getData('text/plain') || draggedName;
+    if (!currentDragged || currentDragged === obj.name) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const mouseY = e.clientY - rect.top;
+    const height = rect.height;
+
+    let position: 'above' | 'below' | 'inside' | 'create-group';
+
+    if (obj.type === 'group') {
+      if (mouseY < height * 0.25) {
+        position = 'above';
+      } else if (mouseY > height * 0.75) {
+        position = 'below';
+      } else {
+        position = 'inside';
+      }
+    } else {
+      if (mouseY < height * 0.3) {
+        position = 'above';
+      } else if (mouseY > height * 0.7) {
+        position = 'below';
+      } else {
+        position = 'create-group';
+      }
+    }
+
+    setDropTarget({
+      targetName: obj.name,
+      position,
+      parentGroupName,
+    });
+  };
+
+  const handleItemDrop = (
+    e: React.DragEvent<HTMLDivElement>,
+    targetObj: GeometricObject,
+    parentGroupName: string | null
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const sourceName = e.dataTransfer.getData('text/plain') || draggedName;
+    if (!sourceName || sourceName === targetObj.name || !dropTarget) {
+      setDraggedName(null);
+      setDropTarget(null);
+      return;
+    }
+
+    const { position } = dropTarget;
+    const sourceObj = objects[sourceName];
+    if (!sourceObj) {
+      setDraggedName(null);
+      setDropTarget(null);
+      return;
+    }
+
+    let currentObjects = { ...objects };
+
+    // Remove sourceName from any existing group it belongs to
+    for (const key of Object.keys(currentObjects)) {
+      const o = currentObjects[key];
+      if (o.type === 'group' && o.elements.includes(sourceName)) {
+        currentObjects[key] = {
+          ...o,
+          elements: o.elements.filter(eName => eName !== sourceName)
+        };
+      }
+    }
+
+    if (position === 'inside' && targetObj.type === 'group') {
+      // Add sourceName to targetObj group
+      const targetGrp = currentObjects[targetObj.name] as any;
+      if (targetGrp && !targetGrp.elements.includes(sourceName)) {
+        currentObjects[targetObj.name] = {
+          ...targetGrp,
+          elements: [...targetGrp.elements, sourceName]
+        };
+      }
+    } else if (position === 'create-group') {
+      // Create new group containing [targetObj.name, sourceName]
+      const namesSet = new Set(Object.values(currentObjects).map(o => o.name));
+      const newGroupName = generateDefaultName('group', namesSet);
+      const newGrpId = `grp_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+
+      // Remove targetObj from its parent group if targetObj was inside a group
+      for (const key of Object.keys(currentObjects)) {
+        const o = currentObjects[key];
+        if (o.type === 'group' && o.elements.includes(targetObj.name)) {
+          currentObjects[key] = {
+            ...o,
+            elements: o.elements.filter(eName => eName !== targetObj.name)
+          };
+        }
+      }
+
+      const newGroup: GeometricObject = {
+        id: newGrpId,
+        name: newGroupName,
+        type: 'group',
+        elements: [targetObj.name, sourceName],
+        color: ONE_DARK_COLORS.accentActive,
+        visible: true
+      };
+
+      // Insert newGroup into currentObjects map right after targetObj
+      const keys = Object.keys(currentObjects);
+      const targetIdx = keys.indexOf(targetObj.name);
+      const insertIdx = targetIdx !== -1 ? targetIdx + 1 : keys.length;
+      keys.splice(insertIdx, 0, newGroupName);
+
+      const reorderedMap: Record<string, GeometricObject> = {};
+      keys.forEach(k => {
+        if (k === newGroupName) {
+          reorderedMap[k] = newGroup;
+        } else {
+          reorderedMap[k] = currentObjects[k];
+        }
+      });
+      currentObjects = reorderedMap;
+    } else if (position === 'above' || position === 'below') {
+      if (parentGroupName && currentObjects[parentGroupName]) {
+        // Reordering inside parentGroupName
+        const parentGrp = currentObjects[parentGroupName] as any;
+        if (parentGrp && parentGrp.type === 'group') {
+          const filteredElements = parentGrp.elements.filter((eName: string) => eName !== sourceName);
+          const targetIdx = filteredElements.indexOf(targetObj.name);
+          const insertIdx = position === 'above' ? Math.max(0, targetIdx) : targetIdx + 1;
+          filteredElements.splice(insertIdx, 0, sourceName);
+
+          currentObjects[parentGroupName] = {
+            ...parentGrp,
+            elements: filteredElements
+          };
+        }
+      } else {
+        // Top-level reordering
+        const keys = Object.keys(currentObjects).filter(k => k !== sourceName);
+        const targetIdx = keys.indexOf(targetObj.name);
+        const insertIdx = position === 'above' ? Math.max(0, targetIdx) : targetIdx + 1;
+        keys.splice(insertIdx, 0, sourceName);
+
+        const reorderedMap: Record<string, GeometricObject> = {};
+        keys.forEach(k => {
+          reorderedMap[k] = currentObjects[k];
+        });
+        currentObjects = reorderedMap;
+      }
+    }
+
+    if (onReorderObjects) {
+      onReorderObjects(currentObjects);
+    }
+
+    setDraggedName(null);
+    setDropTarget(null);
+  };
+
   // Grouping structure calculations
   const groupObjs = objectsList.filter(o => o.type === 'group');
   const childElementNames = new Set<string>();
@@ -507,49 +656,58 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Top level objects (not inside any group)
   const topLevelObjs = objectsList.filter(o => !childElementNames.has(o.name));
 
-  const renderSingleObjectItem = (obj: GeometricObject, isChild = false) => {
+  const renderSingleObjectItem = (obj: GeometricObject, parentGroupName: string | null = null) => {
     const isSelected = selectedId === obj.id;
     const isGroup = obj.type === 'group';
     const isExpanded = !groupExpanded[obj.id]; // default expanded
-    const isDragTarget = dragOverGroup === obj.name;
+    const isChild = parentGroupName !== null;
+
+    const isTarget = dropTarget && dropTarget.targetName === obj.name;
+    const isAbove = isTarget && dropTarget.position === 'above';
+    const isBelow = isTarget && dropTarget.position === 'below';
+    const isInside = isTarget && dropTarget.position === 'inside';
+    const isCreateGroup = isTarget && dropTarget.position === 'create-group';
 
     return (
       <div key={obj.id} style={{ display: 'flex', flexDirection: 'column' }}>
+        {/* Visual drop line indicator previewing insertion above */}
+        {isAbove && (
+          <div
+            className="drop-indicator-line"
+            style={{ marginLeft: isChild ? '16px' : '0px' }}
+          />
+        )}
+
         <div
-          className={`object-item ${isSelected ? 'selected' : ''} ${!obj.visible ? 'hidden' : ''} ${isChild ? 'group-child-item' : ''} ${isDragTarget ? 'drag-over' : ''}`}
+          className={`object-item ${isSelected ? 'selected' : ''} ${!obj.visible ? 'hidden' : ''} ${isChild ? 'group-child-item' : ''} ${isInside ? 'drag-over-inside' : ''} ${isCreateGroup ? 'drag-over-create-group' : ''}`}
           onClick={() => onSelect(obj.id)}
           draggable
           onDragStart={(e) => {
             e.dataTransfer.setData('text/plain', obj.name);
+            setDraggedName(obj.name);
           }}
-          onDragOver={(e) => {
-            if (isGroup) {
-              e.preventDefault();
-              e.stopPropagation();
-              e.dataTransfer.dropEffect = 'move';
-              if (dragOverGroup !== obj.name) setDragOverGroup(obj.name);
+          onDragEnd={() => {
+            setDraggedName(null);
+            setDropTarget(null);
+          }}
+          onDragOver={(e) => handleItemDragOver(e, obj, parentGroupName)}
+          onDragLeave={() => {
+            if (isTarget) {
+              setDropTarget(null);
             }
           }}
-          onDragLeave={(e) => {
-            if (isGroup) {
-              e.preventDefault();
-              setDragOverGroup(null);
-            }
-          }}
-          onDrop={(e) => {
-            if (isGroup) {
-              e.preventDefault();
-              e.stopPropagation();
-              setDragOverGroup(null);
-              const draggedName = e.dataTransfer.getData('text/plain');
-              if (draggedName) handleMoveToGroup(draggedName, obj.name);
-            }
-          }}
+          onDrop={(e) => handleItemDrop(e, obj, parentGroupName)}
           style={{
             borderLeftColor: obj.color,
             marginLeft: isChild ? '16px' : '0px',
           }}
         >
+          {isCreateGroup && (
+            <div className="create-group-badge">
+              + Group with {draggedName || 'element'}
+            </div>
+          )}
+
           {isGroup && (
             <button
               className="action-btn-list"
@@ -604,6 +762,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
+        {/* Visual drop line indicator previewing insertion below */}
+        {isBelow && (
+          <div
+            className="drop-indicator-line"
+            style={{ marginLeft: isChild ? '16px' : '0px' }}
+          />
+        )}
+
         {/* Group child items */}
         {isGroup && isExpanded && (
           <div
@@ -622,19 +788,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
               e.preventDefault();
               e.stopPropagation();
               e.dataTransfer.dropEffect = 'move';
-              if (dragOverGroup !== obj.name) setDragOverGroup(obj.name);
+              if (draggedName && draggedName !== obj.name && (!dropTarget || dropTarget.targetName !== obj.name)) {
+                setDropTarget({
+                  targetName: obj.name,
+                  position: 'inside',
+                  parentGroupName: null
+                });
+              }
             }}
-            onDragLeave={(e) => {
-              e.preventDefault();
-              setDragOverGroup(null);
-            }}
-            onDrop={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setDragOverGroup(null);
-              const draggedName = e.dataTransfer.getData('text/plain');
-              if (draggedName) handleMoveToGroup(draggedName, obj.name);
-            }}
+            onDrop={(e) => handleItemDrop(e, obj, null)}
           >
             {(obj as any).elements.length === 0 ? (
               <div style={{ fontSize: '11px', color: ONE_DARK_COLORS.textMuted, fontStyle: 'italic', padding: '4px 8px' }}>
@@ -644,7 +806,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               (obj as any).elements.map((childName: string) => {
                 const childObj = objects[childName];
                 if (!childObj) return null;
-                return renderSingleObjectItem(childObj, true);
+                return renderSingleObjectItem(childObj, obj.name);
               })
             )}
           </div>
@@ -736,17 +898,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
               e.preventDefault();
               e.dataTransfer.dropEffect = 'move';
             }}
-            onDrop={(e) => {
-              e.preventDefault();
-              const draggedName = e.dataTransfer.getData('text/plain');
-              if (draggedName) handleMoveToGroup(draggedName, null);
-            }}
           >
             {objectsList.length === 0 ? (
               <div className="empty-message">No elements on canvas. Use commands below or the Add button above to create geometry.</div>
             ) : (
               <div className="objects-list">
-                {topLevelObjs.map(obj => renderSingleObjectItem(obj))}
+                {topLevelObjs.map(obj => renderSingleObjectItem(obj, null))}
               </div>
             )}
           </div>

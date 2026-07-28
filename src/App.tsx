@@ -748,6 +748,10 @@ function App() {
     }
   };
 
+  const handleReorderObjects = (newObjects: Record<string, GeometricObject>) => {
+    pushToHistory(newObjects);
+  };
+
   // Focus Viewport on single object
   const handleFocusObject = (id: string) => {
     const obj = Object.values(objects).find(o => o.id === id);
@@ -968,6 +972,7 @@ function App() {
           onToggleVisibility={handleToggleVisibility}
           onAddObject={handleAddObjectDirect}
           onChangeObject={handleChangeObject}
+          onReorderObjects={handleReorderObjects}
           onFocusAll={handleFocusAll}
           onClearAll={handleClearAll}
           onExport={handleExportScript}
