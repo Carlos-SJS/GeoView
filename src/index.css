@@ -299,35 +299,42 @@ body, html {
 }
 
 .drop-indicator-line {
-  position: relative;
-  height: 2px;
+  position: absolute;
+  height: 3px;
   background-color: #61afef;
-  box-shadow: 0 0 6px rgba(97, 175, 239, 0.8);
-  margin-top: 3px;
-  margin-bottom: 3px;
+  box-shadow: 0 0 8px rgba(97, 175, 239, 0.9);
   border-radius: 2px;
-  z-index: 20;
+  z-index: 50;
   pointer-events: none;
-  transition: all 0.1s ease;
+  transition: opacity 0.1s ease;
+}
+
+.drop-indicator-line.drop-line-above {
+  top: -4px;
+}
+
+.drop-indicator-line.drop-line-below {
+  bottom: -4px;
 }
 
 .drop-indicator-line::before,
 .drop-indicator-line::after {
   content: '';
   position: absolute;
-  top: -3px;
-  width: 8px;
-  height: 8px;
+  top: -3.5px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background-color: #61afef;
+  box-shadow: 0 0 6px rgba(97, 175, 239, 0.8);
 }
 
 .drop-indicator-line::before {
-  left: -4px;
+  left: -5px;
 }
 
 .drop-indicator-line::after {
-  right: -4px;
+  right: -5px;
 }
 
 .object-item {

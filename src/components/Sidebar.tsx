@@ -498,17 +498,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
     let position: 'above' | 'below' | 'inside' | 'create-group';
 
     if (obj.type === 'group') {
-      if (mouseY < height * 0.25) {
+      if (mouseY < height * 0.35) {
         position = 'above';
-      } else if (mouseY > height * 0.75) {
+      } else if (mouseY > height * 0.65) {
         position = 'below';
       } else {
         position = 'inside';
       }
     } else {
-      if (mouseY < height * 0.3) {
+      if (mouseY < height * 0.35) {
         position = 'above';
-      } else if (mouseY > height * 0.7) {
+      } else if (mouseY > height * 0.65) {
         position = 'below';
       } else {
         position = 'create-group';
@@ -669,12 +669,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const isCreateGroup = isTarget && dropTarget.position === 'create-group';
 
     return (
-      <div key={obj.id} style={{ display: 'flex', flexDirection: 'column' }}>
+      <div key={obj.id} style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
         {/* Visual drop line indicator previewing insertion above */}
         {isAbove && (
           <div
-            className="drop-indicator-line"
-            style={{ marginLeft: isChild ? '16px' : '0px' }}
+            className="drop-indicator-line drop-line-above"
+            style={{ left: isChild ? '16px' : '0px', right: '0px' }}
           />
         )}
 
@@ -765,8 +765,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Visual drop line indicator previewing insertion below */}
         {isBelow && (
           <div
-            className="drop-indicator-line"
-            style={{ marginLeft: isChild ? '16px' : '0px' }}
+            className="drop-indicator-line drop-line-below"
+            style={{ left: isChild ? '16px' : '0px', right: '0px' }}
           />
         )}
 
