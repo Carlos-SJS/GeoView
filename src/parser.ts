@@ -39,7 +39,7 @@ export function parseArguments(argsStr: string): string[] {
 
 // Generate unique default name for an object type
 export function generateDefaultName(
-  type: ObjectType,
+  type: ObjectType | 'rect',
   existingNames: Set<string>
 ): string {
   let prefix = 'p';
@@ -47,6 +47,7 @@ export function generateDefaultName(
   if (type === 'line') prefix = 'l';
   if (type === 'circle') prefix = 'c';
   if (type === 'polygon') prefix = 'poly';
+  if (type === 'rect') prefix = 'rect';
   if (type === 'angle') prefix = 'ang';
   if (type === 'vector') prefix = 'v';
   if (type === 'group') prefix = 'g';
@@ -710,6 +711,77 @@ export function parseScript(
           break;
         }
 
+        case 'rect':
+        case 'rectangle': {
+          if (argTokens.length !== 2 && argTokens.length !== 4) {
+            throw new Error(`"rect" requires either 2 points/coordinates, or 4 coordinate values: rect(p1, p2) or rect(x1, y1, x2, y2).`);
+          }
+
+          let p1: { x: number; y: number };
+          let p2: { x: number; y: number };
+
+          if (argTokens.length === 2) {
+            const [arg1, arg2] = argTokens;
+
+            // Handle arg1
+            const coord1 = arg1.match(COORD_REGEX);
+            if (coord1) {
+              p1 = { x: parseFloat(coord1[1]), y: parseFloat(coord1[2]) };
+            } else if (CPP_VAR_REGEX.test(arg1)) {
+              const pt = Object.values(activeObjects).find(o => o.name === arg1);
+              if (!pt || pt.type !== 'point') {
+                throw new Error(`Point reference "${arg1}" is not defined.`);
+              }
+              p1 = { x: pt.x, y: pt.y };
+            } else {
+              throw new Error(`Invalid rectangle argument "${arg1}". Expected point name or coordinate pair like (x,y).`);
+            }
+
+            // Handle arg2
+            const coord2 = arg2.match(COORD_REGEX);
+            if (coord2) {
+              p2 = { x: parseFloat(coord2[1]), y: parseFloat(coord2[2]) };
+            } else if (CPP_VAR_REGEX.test(arg2)) {
+              const pt = Object.values(activeObjects).find(o => o.name === arg2);
+              if (!pt || pt.type !== 'point') {
+                throw new Error(`Point reference "${arg2}" is not defined.`);
+              }
+              p2 = { x: pt.x, y: pt.y };
+            } else {
+              throw new Error(`Invalid rectangle argument "${arg2}". Expected point name or coordinate pair like (x,y).`);
+            }
+          } else {
+            // 4 arguments: x1, y1, x2, y2
+            const [x1s, y1s, x2s, y2s] = argTokens;
+            if (!NUMBER_REGEX.test(x1s) || !NUMBER_REGEX.test(y1s) || !NUMBER_REGEX.test(x2s) || !NUMBER_REGEX.test(y2s)) {
+              throw new Error(`Coordinates must be numbers in rect(${x1s}, ${y1s}, ${x2s}, ${y2s})`);
+            }
+            p1 = { x: parseFloat(x1s), y: parseFloat(y1s) };
+            p2 = { x: parseFloat(x2s), y: parseFloat(y2s) };
+          }
+
+          // Opposite corners are p1 and p2:
+          // Four vertices of the axis-aligned rectangle:
+          const points: { x: number; y: number }[] = [
+            { x: p1.x, y: p1.y },
+            { x: p2.x, y: p1.y },
+            { x: p2.x, y: p2.y },
+            { x: p1.x, y: p2.y }
+          ];
+
+          const finalName = name || generateDefaultName('rect', getActiveNamesSet());
+          createdObject = {
+            id: `pl_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            name: finalName,
+            type: 'polygon',
+            points,
+            color: colorParam || getNextColor(),
+            fill: fillParam !== false,
+            visible: true
+          };
+          break;
+        }
+
         case 'angle': {
           if (argTokens.length !== 3) {
             throw new Error(`"angle" requires exactly 3 point references in order: angle(A, B, C). Received ${argTokens.length}.`);
@@ -950,7 +1022,7 @@ export function parseScript(
         }
 
         default:
-          throw new Error(`Unknown geometry function "${funcName}". Supported functions are: point, segment, line, circle, polygon, angle, vec, group, convexHull, add, sub.`);
+          throw new Error(`Unknown geometry function "${funcName}". Supported functions are: point, segment, line, circle, polygon, rect, angle, vec, group, convexHull, add, sub.`);
       }
 
       // Add to rolling list of parsed objects and active set
@@ -984,6 +1056,8 @@ const SYNTAX_SUGGESTIONS: Record<string, Suggestion> = {
   line: { syntax: 'line(p1, p2), line(A, B, C), line(v, p), or line(v, C)', description: 'Create an infinite line' },
   circle: { syntax: 'circle(center, radius) or circle(x, y, radius)', description: 'Create a circle with center point and radius' },
   polygon: { syntax: 'polygon(p1, p2, p3, ...)', description: 'Create a polygon through a set of points' },
+  rect: { syntax: 'rect(p1, p2)', description: 'Create an axis-aligned rectangle from opposite corners' },
+  rectangle: { syntax: 'rect(p1, p2)', description: 'Create an axis-aligned rectangle from opposite corners' },
   angle: { syntax: 'angle(A, B, C)', description: 'Measure angle ABC at vertex B' },
   vec: { syntax: 'vec(p2) or vec(p1, p2)', description: 'Create a vector starting at p1 (default (0,0)) pointing to p2' },
   group: { syntax: 'group(p1, p2, p3, ...)', description: 'Create a group containing existing objects' },

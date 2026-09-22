@@ -19,6 +19,7 @@ export const COMMAND_DOCS: DocCategory[] = [
       { name: 'Line', syntax: 'line(p1, p2), line(A, B, C), line(v, p), or line(v, C)', description: 'Create an infinite line (passing through two points, defined by Ax + By + C = 0, or parallel to direction vector v through point p or with constant C).', example: 'l1 = line(A, B) or l2 = line(1, -1, 3) or l3 = line(v1, p1) or l4 = line(v1, -4)' },
       { name: 'Circle', syntax: 'circle(center, radius) or circle(x, y, radius)', description: 'Create a circle with center point and radius. Radius can be a calculator variable reference.', example: 'c1 = circle(A, 4) or c2 = circle((0,0), r)' },
       { name: 'Polygon', syntax: 'polygon(p1, p2, p3, ...)', description: 'Create a polygon through a set of points.', example: 'poly1 = polygon(A, B, (3, 0))' },
+      { name: 'Rectangle', syntax: 'rect(p1, p2)', description: 'Create an axis-aligned rectangle polygon from two opposite corner points or coordinates.', example: 'rect1 = rect(A, B) or rect2 = rect((0, 0), (4, 3))' },
       { name: 'Angle', syntax: 'angle(A, B, C)', description: 'Measure angle ABC at vertex B.', example: 'ang1 = angle(A, B, C)' },
       { name: 'Vector', syntax: 'vec(p2) or vec(p1, p2)', description: 'Create a vector pointing from p1 (default (0,0)) to p2.', example: 'v1 = vec(A)' },
       { name: 'Vector Add', syntax: 'add(v, w) or v + w', description: 'Add two vectors together dynamically.', example: 'v3 = v1 + v2' },

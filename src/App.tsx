@@ -527,7 +527,7 @@ function App() {
           const rightObj = currentObjects[rightName];
           return !!(leftObj && leftObj.type === 'vector' && rightObj && rightObj.type === 'vector');
         })();
-        const isGeomFunc = /^(point|segment|line|circle|polygon|angle|vec|vector|add|sub|group|convexhull)\s*\(/i.test(expr) || /^\(/.test(expr) || isVectorArithmetic;
+        const isGeomFunc = /^(point|segment|line|circle|polygon|rect|rectangle|angle|vec|vector|add|sub|group|convexhull)\s*\(/i.test(expr) || /^\(/.test(expr) || isVectorArithmetic;
         
         if (!isGeomFunc) {
           isCalculatorAssign = true;

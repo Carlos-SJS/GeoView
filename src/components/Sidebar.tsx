@@ -111,6 +111,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <polygon points="12,4 20,18 4,18" fill="none" stroke="currentColor" strokeWidth="2.5" />
       </svg>
     ),
+    rectangle: (
+      <svg className="obj-icon" viewBox="0 0 24 24" width="16" height="16">
+        <rect x="3" y="6" width="18" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" />
+      </svg>
+    ),
     angle: (
       <svg className="obj-icon" viewBox="0 0 24 24" width="16" height="16">
         <path d="M12 20 L20 12 M12 20 L4 12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
@@ -204,15 +209,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   // Instantiates a default object
-  const createDefaultObject = (type: ObjectType) => {
+  const createDefaultObject = (type: ObjectType | 'rectangle') => {
     const namesSet = new Set(Object.values(objects).map(o => o.name));
-    const name = generateDefaultName(type, namesSet);
+    const name = generateDefaultName(type === 'rectangle' ? 'rect' : type, namesSet);
     const color = ONE_DARK_COLORS.accentActive;
-    const id = `${type.substr(0, 2)}_${Date.now()}`;
+    const id = `${(type === 'rectangle' ? 'pl' : type).substr(0, 2)}_${Date.now()}`;
 
     let newObj: GeometricObject;
 
     switch (type) {
+      case 'rectangle':
+        newObj = {
+          id,
+          name,
+          type: 'polygon',
+          points: [
+            { x: -3, y: -2 },
+            { x: 3, y: -2 },
+            { x: 3, y: 2 },
+            { x: -3, y: 2 }
+          ],
+          color,
+          visible: true
+        };
+        break;
       case 'vector':
         newObj = {
           id,
@@ -372,7 +392,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const handleDuplicate = (e: React.MouseEvent, obj: GeometricObject) => {
     e.stopPropagation();
     const namesSet = new Set(Object.values(objects).map(o => o.name));
-    const newName = generateDefaultName(obj.type, namesSet);
+    const isRect = obj.type === 'polygon' && obj.name.toLowerCase().startsWith('rect');
+    const newName = generateDefaultName(isRect ? 'rect' : obj.type, namesSet);
     const newId = `${obj.type.substr(0, 2)}_${Date.now()}_dup`;
 
     let dupObj: GeometricObject;
@@ -723,7 +744,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
 
           <div className="item-icon-container" style={{ color: obj.color }}>
-            {Icons[obj.type]}
+            {(obj.type === 'polygon' && obj.name.toLowerCase().startsWith('rect')) ? Icons.rectangle : Icons[obj.type]}
           </div>
           
           <div className="item-details">
@@ -872,6 +893,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
             <button className="dropdown-item" onClick={() => createDefaultObject('polygon')}>
               {Icons.polygon} Polygon
+            </button>
+            <button className="dropdown-item" onClick={() => createDefaultObject('rectangle')}>
+              {Icons.rectangle} Rectangle
             </button>
             <button className="dropdown-item" onClick={() => createDefaultObject('angle')}>
               {Icons.angle} Angle (ABC)
